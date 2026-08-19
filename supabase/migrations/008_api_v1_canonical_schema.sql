@@ -77,6 +77,7 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_fee_paise BIGINT NOT
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS discount_paise BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS total_amount_paise BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_street TEXT DEFAULT '';
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_city TEXT DEFAULT '';
@@ -86,6 +87,9 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_lng DOUBLE PRECISION
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS special_notes TEXT DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_orders_idempotency ON public.orders(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS uuid_id UUID DEFAULT gen_random_uuid();
+UPDATE public.orders SET uuid_id = gen_random_uuid() WHERE uuid_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_uuid_id ON public.orders(uuid_id);
 
 -- Backfill canonical columns from legacy values
 UPDATE public.orders SET

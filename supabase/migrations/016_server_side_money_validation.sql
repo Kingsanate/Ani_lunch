@@ -9,6 +9,8 @@
 -- 1. Money validation function
 -- Ensures prices are never negative or exceed sane boundaries.
 -- ----------------------------------------------------------------------------
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'flat';
+
 CREATE OR REPLACE FUNCTION validate_order_money()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -58,7 +60,7 @@ $$ LANGUAGE plpgsql;
 -- 2. Attach money validation to orders table
 -- ----------------------------------------------------------------------------
 DROP TRIGGER IF EXISTS validate_order_money_trigger ON public.orders;
-CREATE CONSTRAINT TRIGGER validate_order_money_trigger
+CREATE TRIGGER validate_order_money_trigger
     BEFORE INSERT OR UPDATE ON public.orders
     FOR EACH ROW
     EXECUTE FUNCTION validate_order_money();
@@ -117,7 +119,7 @@ $$ LANGUAGE plpgsql;
 -- 4. Attach total calculation to orders
 -- ----------------------------------------------------------------------------
 DROP TRIGGER IF EXISTS calculate_order_total_trigger ON public.orders;
-CREATE CONSTRAINT TRIGGER calculate_order_total_trigger
+CREATE TRIGGER calculate_order_total_trigger
     BEFORE INSERT OR UPDATE ON public.orders
     FOR EACH ROW
     EXECUTE FUNCTION calculate_order_total();

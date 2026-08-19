@@ -101,6 +101,10 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		platform.RespondError(w, http.StatusBadRequest, "INVALID_PAYLOAD", "Could not unmarshal webhook payload", "")
 		return
 	}
+	if !isSuccessfulWebhookEvent(payload.Event) {
+		platform.RespondJSON(w, http.StatusOK, map[string]string{"status": "ignored"})
+		return
+	}
 
 	orderID := payload.Payload.Payment.Entity.OrderID
 	if orderID == "" {
@@ -112,11 +116,20 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		paymentID = payload.PaymentID
 	}
 
-	if orderID != "" {
-		_ = h.service.HandlePaymentSuccess(r.Context(), orderID, paymentID)
+	if orderID == "" || paymentID == "" {
+		platform.RespondError(w, http.StatusBadRequest, "INVALID_PAYLOAD", "Payment webhook is missing order or payment ID", "")
+		return
+	}
+	if err := h.service.HandlePaymentSuccess(r.Context(), orderID, paymentID); err != nil {
+		platform.RespondError(w, http.StatusInternalServerError, "PAYMENT_UPDATE_FAILED", "Payment status could not be updated", err.Error())
+		return
 	}
 
 	platform.RespondJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
+}
+
+func isSuccessfulWebhookEvent(event string) bool {
+	return event == "payment.captured" || event == "order.paid"
 }

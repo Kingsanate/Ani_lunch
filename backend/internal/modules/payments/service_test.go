@@ -37,3 +37,16 @@ func TestVerifyWebhookSignature(t *testing.T) {
 		t.Errorf("expected empty signature to fail verification")
 	}
 }
+
+func TestSuccessfulWebhookEvents(t *testing.T) {
+	for _, event := range []string{"payment.captured", "order.paid"} {
+		if !isSuccessfulWebhookEvent(event) {
+			t.Errorf("expected %s to be accepted", event)
+		}
+	}
+	for _, event := range []string{"payment.failed", "payment.authorized", ""} {
+		if isSuccessfulWebhookEvent(event) {
+			t.Errorf("expected %s to be ignored", event)
+		}
+	}
+}

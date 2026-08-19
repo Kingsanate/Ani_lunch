@@ -137,9 +137,9 @@ func (s *Service) HandlePaymentSuccess(ctx context.Context, orderID, paymentID s
 	now := time.Now().UTC()
 	_, err = s.db.Pool.Exec(ctx, `
 		UPDATE orders 
-		SET status = 'confirmed', payment_status = 'paid', updated_at = $1
-		WHERE id = $2
-	`, now, orderID)
+		SET status = 'confirmed', payment_status = 'paid', payment_intent_id = $3, updated_at = $1
+		WHERE id = $2 AND payment_status <> 'paid'
+	`, now, orderID, paymentID)
 
 	if err == nil && s.publisher != nil {
 		_ = s.publisher.PublishOrderEvent(ctx, "orders.paid", &events.OrderEventPayload{

@@ -9,6 +9,14 @@
 -- Create a view 'sellers' that mirrors 'vendors' for backwards compatibility.
 -- Note: 000_base_schema.sql already has this view, but ensure it exists and is complete.
 
+-- Keep the BIGINT/TEXT catalog identifiers from 000_base_schema.sql. Add only
+-- columns required by newer API queries so this migration remains expand-only.
+ALTER TABLE public.daily_deals ADD COLUMN IF NOT EXISTS banner_image_url TEXT;
+ALTER TABLE public.daily_deals ADD COLUMN IF NOT EXISTS discount_percentage NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE public.daily_deals ADD COLUMN IF NOT EXISTS max_discount_amount NUMERIC(10,2);
+ALTER TABLE public.daily_deals ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.daily_deals ADD COLUMN IF NOT EXISTS valid_until TIMESTAMPTZ;
+
 CREATE OR REPLACE VIEW public.sellers AS 
 SELECT 
     id,
