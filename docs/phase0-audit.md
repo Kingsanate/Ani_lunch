@@ -146,3 +146,56 @@ Live DB schema & RLS enforcement; webhook handler; running Redis/NATS; actual la
 
 ---
 *Phase 0 gate: STOP. No backend rewrite, no Supabase deletion, no schema changes, no Redis/NATS introduction, no auth/payment changes were made.*
+
+---
+
+# ERRATA — Post-audit verification (Phase 1, 2026-08-19)
+
+The original audit inventory was based on a truncated directory listing. Full
+verification during Phase 1 found **additional migrations (012–016), a second
+`010` file, and `backend/api/openapi.yaml`** that the audit missed. Their
+contents materially change the findings:
+
+## E1. Migration inventory correction (VERIFIED)
+Beyond `000–011` the repo contains: `012_users_pages_schema.sql`,
+`013_seed_catalog_data.sql`, `014_fix_id_types_and_rls.sql`,
+`015_security_hardening.sql`, `016_server_side_money_validation.sql`, and a
+**duplicate version `010`** (`010_menus_items_deals_schema.sql` AND
+`010_sellers_vendors_reconciliation.sql`). An API contract already exists:
+`backend/api/openapi.yaml` (audit §15 "generate/document an API contract" is
+therefore PARTIAL, not missing).
+
+## E2. The migration chain 000→016 is internally contradictory (VERIFIED, static)
+| Defect | Evidence | Consequence |
+|---|---|---|
+| Duplicate version `010` | two `010_*.sql` files | ambiguous apply order |
+| `010` redefines `menus.id`/`items.id`/`daily_deals.id`/`coupons.id` as UUID via `CREATE TABLE IF NOT EXISTS` | `010_menus_items_deals_schema.sql:12,33,76` | no-op on a DB built from `000` (BIGINT/TEXT); `items.category_id UUID REFERENCES menus(id)` then fails on type mismatch |
+| `010`/`012`/`014` RLS uses `users.role` | `010:125,140,155`; `012:26`; `014:47,73` | `012` only declares `role` inside `CREATE TABLE IF NOT EXISTS` (no-op) → column not guaranteed → policies fail |
+| `014` backfills `orders.uuid_id` with `gen_random_uuid()` | `014:12-17` | random UUIDs unrelated to existing TEXT `orders.id` → referential mapping destroyed, nothing syncs them |
+| FKs target non-unique `orders(uuid_id)` | `014:89,109`; `015:58,81` | Postgres requires a unique constraint on FK targets → `CREATE TABLE`/FK fails |
+| `013` writes paise as rupees | `013:20-25,32-33,40-41` | ₹18,000 biryani, ₹8,000 chai, ₹10,000 coupon minimum |
+| `016` references `orders.discount_type` (no such column) and recomputes totals from `items->>'price'` | `016:98,102` | runtime error on coupon orders; NULL subtotal if items JSONB lacks `price` key → order creation breaks |
+| `016`/`014` `items` vendor policy compares `vendors.name = auth.uid()::text` | `014:44`; `010:137` | policy matches nothing meaningful; broken vendor authorization by design |
+
+**Verdict:** whoever produced `010–016` did so without validating against `000` or
+the live schema. If the live database was built from `000–009`, then `010–016`
+**cannot apply cleanly** (several statements fail outright). If the live
+database was built fresh from `010` alone, it diverges from `000` and from the
+Go API contracts. Either way the chain is **not reproducible** — this is the
+single most important Phase 1 finding and it supersedes the audit's earlier
+assumption that the ID/FK issue was merely "unresolved" (it was *attempted*
+and botched).
+
+## E3. Corrected gap-table status
+- API contract: PARTIAL → PRESENT (`backend/api/openapi.yaml`) but its accuracy
+  against the broken chain is UNKNOWN.
+- Order/id consistency: VERIFIED BROKEN (attempted by `014`, ineffective/breaking).
+- Money: legacy rupees + canonical paise columns remain; `016`'s trigger-based
+  recalculation is itself defective.
+
+## E4. Verification status of this errata
+**VERIFIED:** all E2 defects by static reading of the migration files (and by
+`backend/internal/database/migrate/migrate_lint_test.go`, which fails on all of
+them). **UNKNOWN:** the actual live database's shape and which migration chain
+was applied there — requires remote/Supabase inspection via
+`supabase/integrity-check.sql`.
