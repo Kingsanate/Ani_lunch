@@ -1,0 +1,69 @@
+# AniMeat — Prometheus autoscale / alert rules (Phase 11)
+#
+# Scale-OUT signals (any sustained trigger adds a replica; require 2+ of 4
+# to avoid CPU-only decisions, per plan rule: "Autoscale by CPU + request
+# rate + latency + queue depth (not CPU alone)").
+#
+# Scale-IN is conservative: only after 15 min of ALL signals low.
+#
+# Targets are per-instance labels: instance="api1:8080" etc.
+# NATS metrics come from the nats_exporter or nats monitoring /varz|/jsz.
+
+groups:
+  - name: animeat-autoscale
+    interval: 30s
+    rules:
+      # --- Signal 1: CPU (>70% sustained 5m) ------------------------------
+      - record: animeat_api_cpu_usage_ratio
+        expr: rate(container_cpu_usage_seconds_total{container=~"animeat_api_.*"}[5m]) / container_spec_cpu_quota{container=~"animeat_api_.*"} * 100
+
+      - record: animeat:autoscale_cpu_high
+        expr: animeat_api_cpu_usage_ratio > 70
+
+      # --- Signal 2: Request rate (>2000 rps per instance, 5m avg) --------
+      - record: animeat:autoscale_rps_high
+        expr: sum by (instance) (rate(animeat_http_requests_total{route=~"/api/v1/.*"}[5m])) > 2000
+
+      # --- Signal 3: p95 latency (>300ms sustained 5m) --------------------
+      - record: animeat:autoscale_latency_high
+        expr: histogram_quantile(0.95, sum by (instance, le) (rate(animeat_http_request_duration_seconds_bucket{route=~"/api/v1/.*"}[5m]))) > 0.3
+
+      # --- Signal 4: NATS orders stream backlog (>1000 pending, 5m) -------
+      - record: animeat:autoscale_queue_high
+        expr: nats_jetstream_consumer_num_pending{stream="ORDERS"} > 1000
+
+      # --- Composite: at least 2 of 4 signals -----------------------------
+      - record: animeat:autoscale_scale_out
+        expr: (animeat:autoscale_cpu_high or vector(0)) + (animeat:autoscale_rps_high or vector(0)) + (animeat:autoscale_latency_high or vector(0)) + (animeat:autoscale_queue_high or vector(0)) >= 2
+
+      - record: animeat:autoscale_scale_in
+        expr: (animeat_api_cpu_usage_ratio < 30 and on() vector(0)) or vector(0)
+
+  - name: animeat-alerts
+    interval: 1m
+    rules:
+      - alert: AnimeatAPIScaleOut
+        expr: animeat:autoscale_scale_out
+        for: 5m
+        annotations:
+          summary: "API replica scale-out required (2+ signals: CPU/rps/p95/queue)"
+      - alert: AnimeatReplicaDown
+        expr: up{job="animeat-api"} == 0
+        for: 1m
+        annotations:
+          summary: "API replica {{ $labels.instance }} unreachable"
+      - alert: AnimeatDBPoolExhausted
+        expr: pgbouncer_pools_client_idle_seconds > 120
+        for: 5m
+        annotations:
+          summary: "PgBouncer clients starved — check pool sizing"
+      - alert: AnimeatNATSSlowConsumer
+        expr: nats_server_slow_consumers > 0
+        for: 2m
+        annotations:
+          summary: "NATS slow consumer detected (realtime gateway pressure)"
+      - alert: AnimeatReplicaLagHigh
+        expr: animeat_replica_lag_seconds > 30
+        for: 2m
+        annotations:
+          summary: "Read replica lag {{ $value }}s — stale reads served; check standby WAL apply"

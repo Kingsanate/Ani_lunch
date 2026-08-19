@@ -1,0 +1,1 @@
+CREATE POLICY "Vendors read orders" ON public.orders FOR SELECT USING (auth.role() = 'authenticated'); CREATE POLICY "Vendors update orders" ON public.orders FOR UPDATE USING (auth.role() = 'authenticated');

@@ -1,0 +1,67 @@
+# Environment & Secrets
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.cert
+*.p12
+
+# Supabase CLI Local Artifacts
+.temp/
+supabase/.temp/
+anilunch_admin/supabase/.temp/
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.kilo/
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ / VS Code
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+
+# Flutter / Dart
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+coverage/
+**/build/
+**/coverage/
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+
+# Symbolication & Obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android build artifacts
+/android/app/debug
+/android/app/profile
+/android/app/release
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+
+# Go backend artifacts (Phase 3+)
+bin/
+dist/
+*.exe
+*.test

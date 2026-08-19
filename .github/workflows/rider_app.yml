@@ -1,0 +1,59 @@
+name: Rider App CI
+
+on:
+  pull_request:
+    paths:
+      - 'anilunch_rider/**'
+  push:
+    branches: [main]
+    paths:
+      - 'anilunch_rider/**'
+
+jobs:
+  security:
+    name: Security Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_LICENSE: MIT
+
+  analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: anilunch_rider
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.11.x'
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --coverage
+      - uses: codecov/codecov-action@v3
+        with:
+          directory: anilunch_rider/coverage
+
+  build:
+    needs: analyze
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: anilunch_rider
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.11.x'
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rider-app-apk
+          path: anilunch_rider/build/app/outputs/flutter-apk/app-release.apk

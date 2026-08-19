@@ -1,0 +1,26 @@
+# AniMeat — Caddy load balancer config (Phase 11)
+#
+# Health-checked round-robin across stateless API replicas. WebSocket
+# upgrades (GET /api/v1/ws) pass through transparently — Caddy does not
+# terminate or buffer them, so the realtime gateway works unchanged behind
+# the LB. There is no stickiness: every replica can serve every request.
+
+{
+    admin off
+}
+
+:8080 {
+    encode gzip
+
+    reverse_proxy api1:8080 api2:8080 api3:8080 {
+        lb_policy round_robin
+        lb_try_durations 500ms
+
+        # Readiness probes: /health/ready verifies the DB pool, so a replica
+        # with a dead database is pulled from rotation within ~15s.
+        health_uri /health/ready
+        health_interval 10s
+        health_timeout 5s
+        health_fail_duration 30s
+    }
+}

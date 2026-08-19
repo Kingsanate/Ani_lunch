@@ -1,0 +1,759 @@
+﻿openapi: 3.0.3
+info:
+  title: AniMeat API
+  description: |
+    Server-authoritative API for the AniMeat food delivery platform.
+    Source of truth for money, orders, payments, roles, and state transitions.
+    All timestamps are RFC3339 UTC. Money is transmitted as integer paise (minor units)
+    where a `*_paise` field exists; legacy rupee fields may still be present for
+    backwards compatibility with legacy Flutter clients.
+  version: 1.0.0
+  contact:
+    name: AniMeat Engineering
+servers:
+  - url: https://api.animeat.app
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - bearerAuth: []
+paths:
+  /api/v1:
+    get:
+      summary: API root / version
+      operationId: getApiRoot
+      responses:
+        '200':
+          description: Service descriptor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  version: { type: string }
+                  environment: { type: string }
+  /api/v1/catalog/items:
+    get:
+      summary: List catalog items (cached, public)
+      operationId: getCatalogItems
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Catalog items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+  /api/v1/catalog/deals:
+    get:
+      summary: List active daily deals
+      operationId: getDailyDeals
+      responses:
+        '200':
+          description: Daily deals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deal'
+  /api/v1/catalog/menus:
+    get:
+      summary: List menus / categories
+      operationId: getMenus
+      responses:
+        '200':
+          description: Menus
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Menu'
+  /api/v1/orders:
+    post:
+      summary: Create order (server-authoritative pricing)
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Created order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v1/orders/{id}:
+    get:
+      summary: Get a single order (visibility enforced server-side)
+      operationId: getOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Cancel an order (customer only, pending states)
+      operationId: cancelOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  order_id: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+  /api/v1/orders/{id}/transition:
+    post:
+      summary: Apply a role-authorized status transition
+      operationId: transitionOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, confirmed, preparing, ready_for_pickup, accepted, picked_up, delivered, cancelled]
+      responses:
+        '200':
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/payments/create-intent:
+    post:
+      summary: Create a payment intent/link for an order
+      operationId: createPaymentIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id: { type: string }
+      responses:
+        '200':
+          description: Payment intent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+  /api/v1/payments/webhook:
+    post:
+      summary: Payment provider webhook (public, HMAC verified)
+      operationId: paymentWebhook
+      responses:
+        '200':
+          description: Acknowledged
+  /api/v1/users/me:
+    get:
+      summary: Get own profile
+      operationId: getProfile
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Upsert profile (created on first login)
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /api/v1/users/me/notifications:
+    get:
+      summary: List own notifications
+      operationId: listNotifications
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+  /api/v1/users/me/notifications/read:
+    post:
+      summary: Mark all own notifications read
+      operationId: markNotificationsRead
+      responses:
+        '200':
+          description: OK
+  /api/v1/riders/me:
+    get:
+      summary: Rider profile
+      operationId: getRiderProfile
+      responses:
+        '200':
+          description: Rider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rider'
+  /api/v1/riders/me/availability:
+    put:
+      summary: Toggle online/offline
+      operationId: setAvailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_online]
+              properties:
+                is_online: { type: boolean }
+      responses:
+        '200':
+          description: Rider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rider'
+  /api/v1/riders/me/location:
+    put:
+      summary: Update GPS location
+      operationId: updateRiderLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        '200':
+          description: Rider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rider'
+  /api/v1/riders/orders/available:
+    get:
+      summary: List unassigned ready_for_pickup orders
+      operationId: listAvailableOrders
+      responses:
+        '200':
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+  /api/v1/riders/orders/{id}/accept:
+    post:
+      summary: Claim an order
+      operationId: acceptOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Assigned order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/vendors/me:
+    get:
+      summary: Vendor profile
+      operationId: getVendorProfile
+      responses:
+        '200':
+          description: Vendor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+  /api/v1/vendors/me/orders:
+    get:
+      summary: Vendor active kitchen orders
+      operationId: listVendorOrders
+      responses:
+        '200':
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+  /api/v1/vendors/me/stats:
+    get:
+      summary: Vendor daily stats
+      operationId: getVendorStats
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/admin/dashboard:
+    get:
+      summary: Platform dashboard stats (admin)
+      operationId: adminDashboard
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/admin/riders:
+    get:
+      summary: List riders (admin)
+      operationId: adminListRiders
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Riders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rider'
+  /api/v1/admin/riders/{id}/approval:
+    put:
+      summary: Approve/reject a rider (admin)
+      operationId: adminSetRiderApproval
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approval_status]
+              properties:
+                approval_status:
+                  type: string
+                  enum: [approved, rejected]
+                rejection_reason: { type: string }
+      responses:
+        '200':
+          description: Rider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rider'
+  /api/v1/admin/settings:
+    get:
+      summary: App branding settings (admin)
+      operationId: adminGetSettings
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppSettings'
+    put:
+      summary: Update app branding (admin)
+      operationId: adminUpdateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppSettings'
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppSettings'
+  /api/v1/admin/items:
+    get:
+      summary: List catalog items (admin)
+      operationId: adminListItems
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+    post:
+      summary: Create catalog item (admin)
+      operationId: adminCreateItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemRequest'
+      responses:
+        '201':
+          description: Created item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+  /api/v1/admin/items/{id}:
+    put:
+      summary: Update catalog item (admin)
+      operationId: adminUpdateItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemRequest'
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+    delete:
+      summary: Deactivate catalog item (admin)
+      operationId: adminDeleteItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+  /api/v1/admin/deals:
+    get:
+      summary: List deals (admin)
+      operationId: adminListDeals
+      responses:
+        '200':
+          description: Deals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deal'
+    post:
+      summary: Create deal (admin)
+      operationId: adminCreateDeal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDealRequest'
+      responses:
+        '201':
+          description: Created deal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deal'
+  /api/v1/admin/pages:
+    get:
+      summary: List CMS pages (admin)
+      operationId: adminListPages
+      responses:
+        '200':
+          description: Pages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Page'
+  /api/v1/admin/pages/{slug}:
+    put:
+      summary: Upsert CMS page (admin)
+      operationId: adminUpsertPage
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageRequest'
+      responses:
+        '200':
+          description: Page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Structured error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [error, code, message]
+      properties:
+        error: { type: string }
+        code: { type: string }
+        message: { type: string }
+        detail: { type: string }
+    Item:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        price: { type: integer, description: paise }
+        original_price: { type: integer }
+        image_url: { type: string }
+        category: { type: string }
+        is_available: { type: boolean }
+    Deal:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        deal_price: { type: number }
+        original_price: { type: number }
+        image_url: { type: string }
+        is_active: { type: boolean }
+    Menu:
+      type: object
+      properties:
+        id: { type: integer }
+        menu_title: { type: string }
+        image_url: { type: string }
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        vendor_id: { type: string, nullable: true }
+        rider_id: { type: string, nullable: true }
+        order_type: { type: string }
+        status: { type: string }
+        items: { type: array, items: { type: object } }
+        subtotal_paise: { type: integer }
+        delivery_fee_paise: { type: integer }
+        discount_paise: { type: integer }
+        total_amount_paise: { type: integer }
+        total_amount: { type: number }
+        payment_method: { type: string }
+        payment_status: { type: string }
+        created_at: { type: string, format: date-time }
+    CreateOrderRequest:
+      type: object
+      required: [items]
+      properties:
+        vendor_id: { type: string }
+        order_type: { type: string, enum: [meat, lunch] }
+        items:
+          type: array
+          items:
+            type: object
+            required: [item_id, quantity]
+            properties:
+              item_id: { type: string }
+              quantity: { type: integer }
+        coupon_code: { type: string }
+        payment_method: { type: string, enum: [cod, online] }
+        delivery_street: { type: string }
+        delivery_city: { type: string }
+        delivery_zip: { type: string }
+        delivery_lat: { type: number }
+        delivery_lng: { type: number }
+        special_notes: { type: string }
+        idempotency_key: { type: string }
+    PaymentIntent:
+      type: object
+      properties:
+        order_id: { type: string }
+        razorpay_order_id: { type: string }
+        amount_paise: { type: integer }
+        currency: { type: string }
+        key_id: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        avatar_url: { type: string }
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        avatar_url: { type: string }
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        body: { type: string }
+        notification_type: { type: string }
+        entity_type: { type: string }
+        entity_id: { type: string }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Rider:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        is_online: { type: boolean }
+        is_approved: { type: boolean }
+        approval_status: { type: string }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+    Vendor:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        store_name: { type: string }
+        address: { type: string }
+        location_lat: { type: number, nullable: true }
+        location_lng: { type: number, nullable: true }
+        is_open: { type: boolean }
+    AppSettings:
+      type: object
+      properties:
+        id: { type: integer }
+        home_video_url: { type: string }
+        show_hero_banner: { type: boolean }
+        hero_badge_text: { type: string }
+        hero_title: { type: string }
+        hero_subtitle: { type: string }
+        hero_button_text: { type: string }
+        footer_copyright: { type: string }
+    AdminItemRequest:
+      type: object
+      required: [name, price]
+      properties:
+        name: { type: string }
+        price: { type: integer, description: paise }
+        original_price: { type: integer }
+        image_url: { type: string }
+        category: { type: string }
+        is_available: { type: boolean }
+        vendor_id: { type: string }
+    AdminDealRequest:
+      type: object
+      required: [title, deal_price]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        deal_price: { type: number }
+        original_price: { type: number }
+        image_url: { type: string }
+        is_active: { type: boolean }
+    Page:
+      type: object
+      properties:
+        id: { type: integer }
+        slug: { type: string }
+        title: { type: string }
+        content: { type: string }
+    PageRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title: { type: string }
+        content: { type: string }

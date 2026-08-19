@@ -1,0 +1,184 @@
+# AniMeat production-style stack — horizontal API scaling (Phase 11) +
+# PostgreSQL read replica (Phase 12).
+#
+# Topology:
+#   Caddy (LB, :8080) ─┬─ api1 ─┐        ┌─ PgBouncer (rw) ── PostgreSQL (primary)
+#                      ├─ api2 ─┼─ Redis ┤
+#                      └─ api3 ─┘        └─ PgBouncer (ro) ── PostgreSQL (standby)
+#                                            NATS (:4222)
+#
+# Run:
+#   docker compose -f backend/docker-compose.lb.yml up -d --build
+#
+# Read/write split: stale-tolerant reads (catalog, lists, stats, inbox) use
+# READ_DATABASE_URL (the replica via PgBouncer-ro); money/state reads and all
+# writes use DATABASE_URL (primary via PgBouncer-rw). See
+# docs/phase12-read-replicas.md for the routing policy.
+#
+# Health checks for the LB: /health/ready (DB ping) + /health/live (process).
+# Prometheus scrape: apiN:8080/metrics directly (per-instance metrics),
+# including animeat_replica_lag_seconds (from the standby).
+
+# Shared API service definition (stateless — any replica serves any request).
+x-api: &api
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    pgbouncer:
+      condition: service_started
+    pgbouncer_ro:
+      condition: service_started
+    redis:
+      condition: service_healthy
+  environment:
+    APP_ENV: ${APP_ENV:-production}
+    PORT: "8080"
+    DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgrespassword}@pgbouncer:6432/animeat?sslmode=disable
+    READ_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgrespassword}@pgbouncer_ro:6432/animeat?sslmode=disable
+    REDIS_URL: redis://redis:6379
+    NATS_URL: nats://nats:4222
+    SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-key-for-local-dev-must-change}
+    RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_key}
+    RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-rzp_test_secret}
+    PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-webhook_secret_key}
+  # No host port mapping: traffic enters only through Caddy.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: animeat_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: animeat
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_MAX_CONNECTIONS: "200"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../supabase/migrations/000_base_schema.sql:/docker-entrypoint-initdb.d/000_base_schema.sql:ro
+      - ../supabase/migrations/007_secure_rls_policies.sql:/docker-entrypoint-initdb.d/007_secure_rls_policies.sql:ro
+      - ../supabase/migrations/008_api_v1_canonical_schema.sql:/docker-entrypoint-initdb.d/008_api_v1_canonical_schema.sql:ro
+      - ../supabase/migrations/009_notifications.sql:/docker-entrypoint-initdb.d/009_notifications.sql:ro
+      - ./pg-init-replication.sql:/docker-entrypoint-initdb.d/010_replication_role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d animeat"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Streaming standby (read replica). Bootstraps once via pg_basebackup,
+  # then continuously applies WAL. Lag is monitored by the API
+  # (animeat_replica_lag_seconds) and alerted in autoscale.rules.yml.
+  postgres_replica:
+    image: postgres:16-alpine
+    container_name: animeat_pg_replica
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replpassword}
+    command: ["/replica-init.sh"]
+    volumes:
+      - ./replica-init.sh:/replica-init.sh:ro
+      - repldata:/var/lib/postgresql/data
+
+  # Connection pooling — every API replica shares one small pool instead of
+  # each opening N connections straight to PostgreSQL (max 200 server conns).
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    container_name: animeat_pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      DB_NAME: animeat
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "40"
+    ports:
+      - "6432:6432"
+
+  # Read-only pool — routes stale-tolerant reads to the standby.
+  pgbouncer_ro:
+    image: edoburu/pgbouncer:1.23.1
+    container_name: animeat_pgbouncer_ro
+    restart: unless-stopped
+    depends_on:
+      postgres_replica:
+        condition: service_started
+    environment:
+      DB_HOST: postgres_replica
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      DB_NAME: animeat
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "40"
+
+  redis:
+    image: redis:7-alpine
+    container_name: animeat_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: animeat_nats
+    restart: unless-stopped
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "8222:8222"
+    volumes:
+      - natsdata:/data
+
+  # Stateless API replicas. Add more by duplicating the block (or use the
+  # compose DNS round-robin mode: a single `api` service + --scale api=N).
+  api1:
+    <<: *api
+    container_name: animeat_api_1
+  api2:
+    <<: *api
+    container_name: animeat_api_2
+  api3:
+    <<: *api
+    container_name: animeat_api_3
+
+  # Load balancer — health-checked round-robin, WebSocket passthrough
+  # (upgrades are transparent to Caddy's reverse_proxy).
+  caddy:
+    image: caddy:2-alpine
+    container_name: animeat_caddy
+    restart: unless-stopped
+    depends_on:
+      - api1
+      - api2
+      - api3
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  pgdata:
+  redisdata:
+  natsdata:
+  repldata:
