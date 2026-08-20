@@ -34,7 +34,7 @@ func ResolveActor(ctx context.Context, q Querier, userID string) (ActorKind, err
 
 	var riderExists bool
 	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM riders WHERE id = $1)`, userID).Scan(&riderExists); err != nil {
+		`SELECT EXISTS (SELECT 1 FROM riders WHERE id::text = $1)`, userID).Scan(&riderExists); err != nil {
 		return "", fmt.Errorf("failed to check rider role: %w", err)
 	}
 	if riderExists {
@@ -43,7 +43,7 @@ func ResolveActor(ctx context.Context, q Querier, userID string) (ActorKind, err
 
 	var vendorExists bool
 	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM vendors WHERE id = $1)`, userID).Scan(&vendorExists); err != nil {
+		`SELECT EXISTS (SELECT 1 FROM vendors WHERE id::text = $1)`, userID).Scan(&vendorExists); err != nil {
 		return "", fmt.Errorf("failed to check vendor role: %w", err)
 	}
 	if vendorExists {
@@ -52,8 +52,16 @@ func ResolveActor(ctx context.Context, q Querier, userID string) (ActorKind, err
 
 	var isAdmin bool
 	if err := q.QueryRow(ctx,
-		`SELECT COALESCE(is_admin, FALSE) FROM users WHERE user_id = $1 OR id::text = $1`, userID).Scan(&isAdmin); err != nil {
+		`SELECT COALESCE(is_admin, FALSE) FROM users WHERE user_id::text = $1 OR id::text = $1`, userID).Scan(&isAdmin); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			return ActorCustomer, nil
+		}
+		// If is_admin column doesn't exist in legacy schema, check admin emails as fallback
+		var email string
+		if errEmail := q.QueryRow(ctx, `SELECT email FROM users WHERE user_id::text = $1 OR id::text = $1`, userID).Scan(&email); errEmail == nil {
+			if email == "questrsanate@gmail.com" || email == "kingsanate@gmail.com" || email == "jamesanate22@gmail.com" || email == "admin@anilunch.com" {
+				return ActorAdmin, nil
+			}
 			return ActorCustomer, nil
 		}
 		return "", fmt.Errorf("failed to check admin role: %w", err)

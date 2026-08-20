@@ -549,11 +549,17 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
           'id': orderId,
           'user_id': user.id,
           'total_amount': total,
+          'subtotal': total - _deliveryFee,
           'status': 'pending',
           'payment_method': paymentMethod,
           'address': _address,
           'delivery_fee': _deliveryFee,
           'order_type': widget.isLunchMode ? 'lunch' : 'meat',
+          'items': cleanItems,
+          'ordered_by': user.email ?? user.phone ?? 'Customer',
+          'order_time': DateTime.now().toIso8601String(),
+          'product_ids': cleanItems.map((e) => e['id']?.toString() ?? '').toList(),
+          'is_success': true,
         });
       } catch (e) {
         debugPrint('Background Supabase order insert notice: $e');

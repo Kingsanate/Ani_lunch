@@ -35,14 +35,20 @@ class ApiClient {
       debugPrint('ApiClient.fetchOrders error: $e');
     }
     try {
-      final res = await _supabase
-          .from('orders')
-          .select()
-          .order('order_time', ascending: false);
+      var query = _supabase.from('orders').select();
+      if (status != null && status.isNotEmpty) {
+        query = query.ilike('status', status);
+      }
+      final res = await query.order('created_at', ascending: false);
       return res.cast<Map<String, dynamic>>();
     } catch (e) {
-      debugPrint('ApiClient.fetchOrders (supabase) error: $e');
-      return [];
+      try {
+        final res = await _supabase.from('orders').select();
+        return res.cast<Map<String, dynamic>>();
+      } catch (e2) {
+        debugPrint('ApiClient.fetchOrders (supabase) error: $e2');
+        return [];
+      }
     }
   }
 

@@ -111,19 +111,41 @@ class _EditInformationPageState extends State<EditInformationPage> {
       String? finalImageUrl = _existingImageUrl;
       if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
         String? storageUrl;
-        final filename = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final newFilename = '$timestamp.jpg';
+        final newPath = 'profiles/${user.id}/$newFilename';
         try {
+          // 1. Upload new image
           await Supabase.instance.client.storage.from('users').uploadBinary(
-            filename,
+            newPath,
             _pickedBytes!,
             fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
           );
-          storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(filename);
+          storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(newPath);
           debugPrint('Storage upload SUCCESS: $storageUrl');
+
+          // 2. Permanently delete any previous profile photos for this user to keep storage clean
+          try {
+            final oldFiles = await Supabase.instance.client.storage
+                .from('users')
+                .list(path: 'profiles/${user.id}');
+            final filesToDelete = oldFiles
+                .where((f) => f.name != newFilename)
+                .map((f) => 'profiles/${user.id}/${f.name}')
+                .toList();
+            if (filesToDelete.isNotEmpty) {
+              await Supabase.instance.client.storage.from('users').remove(filesToDelete);
+              debugPrint('Cleaned up ${filesToDelete.length} old profile photo(s) from storage');
+            }
+          } catch (cleanupErr) {
+            debugPrint('Old avatar cleanup notice: $cleanupErr');
+          }
         } catch (e) {
           debugPrint('Storage upload error: $e');
         }
-        finalImageUrl = (storageUrl != null && storageUrl.isNotEmpty) ? storageUrl : 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
+        finalImageUrl = (storageUrl != null && storageUrl.isNotEmpty)
+            ? storageUrl
+            : 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
       }
 
       final name = _nameController.text.trim();
