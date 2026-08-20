@@ -366,58 +366,85 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   }
 
   Widget _buildOrderCard(OrderModel order) {
-    return GestureDetector(
-      onTap: () => _acceptOrder(order),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141414),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Order #${order.id.substring(0, 4)}', style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600)),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFFFF9100).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                  child: Text('NEW', style: GoogleFonts.inter(color: const Color(0xFFFF9100), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141414),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Order #${order.id.length >= 6 ? order.id.substring(0, 6) : order.id}',
+                style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF9100).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(14)),
-                  child: const Center(child: Icon(LucideIcons.mapPin, color: Color(0xFFFF9100), size: 20)),
+                child: Text(
+                  'READY FOR PICKUP',
+                  style: GoogleFonts.inter(color: const Color(0xFFFF9100), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(order.customerName ?? 'Customer', style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text('\$${order.totalAmount?.toStringAsFixed(2) ?? '0.00'}', style: GoogleFonts.inter(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFF9100).withValues(alpha: 0.2)),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFFF9100), shape: BoxShape.circle),
-                  child: const Icon(LucideIcons.check, color: Colors.white, size: 20),
+                child: const Center(child: Icon(LucideIcons.bike, color: Color(0xFFFF9100), size: 22)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.customerName ?? 'Customer',
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${order.totalAmount?.toStringAsFixed(0) ?? '0'}',
+                      style: GoogleFonts.inter(color: const Color(0xFF00C853), fontSize: 15, fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _acceptOrder(order),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF9100),
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(LucideIcons.check, size: 16, color: Colors.black),
+                label: Text(
+                  'ACCEPT',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

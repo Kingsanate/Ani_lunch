@@ -91,7 +91,6 @@ class _HeroSectionState extends State<HeroSection> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Background Media
           if (_isVideoInitialized && _controller != null)
             FittedBox(
               fit: BoxFit.cover,
@@ -102,7 +101,26 @@ class _HeroSectionState extends State<HeroSection> {
               ),
             )
           else
-            Image.asset('assets/images/hero.png', fit: BoxFit.cover),
+            Image.asset(
+              'assets/images/hero.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF2C1A0E), Color(0xFFF15A24)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.lunch_dining_rounded,
+                    size: 80,
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+              ),
+            ),
           
           // Premium Cinematic Gradient Overlay
           Container(
@@ -111,18 +129,18 @@ class _HeroSectionState extends State<HeroSection> {
                 begin: Alignment.bottomLeft,
                 end: Alignment.topRight,
                 colors: [
-                  Colors.black.withValues(alpha: 0.8),
-                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withValues(alpha: 0.85),
+                  Colors.black.withValues(alpha: 0.45),
                   Colors.transparent,
                 ],
-                stops: const [0.0, 0.5, 1.0],
+                stops: const [0.0, 0.55, 1.0],
               ),
             ),
           ),
 
           // Glassmorphism Content Area
           Positioned(
-            bottom: 24,
+            bottom: 20,
             left: 20,
             right: 20,
             child: Column(
@@ -130,29 +148,47 @@ class _HeroSectionState extends State<HeroSection> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF15A24).withValues(alpha: 0.9),
+                    color: const Color(0xFFF15A24),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFFF15A24).withValues(alpha: 0.4),
                         blurRadius: 8,
-                        offset: const Offset(0, 4),
+                        offset: const Offset(0, 3),
                       )
                     ],
                   ),
-                  child: Text(_badgeText, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _titleText,
-                  style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, height: 1.1),
+                  child: Text(
+                    _badgeText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
+                  _titleText,
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    height: 1.15,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
                   _subtitleText,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),

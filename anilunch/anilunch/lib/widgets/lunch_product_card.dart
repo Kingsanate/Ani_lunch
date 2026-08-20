@@ -70,12 +70,55 @@ class LunchProductCard extends StatelessWidget {
               // Dark overlay if out of stock
               if (!isAvailable)
                 Container(
-                  color: Colors.black.withValues(alpha: 0.6),
+                  color: Colors.black.withValues(alpha: 0.65),
                   alignment: Alignment.center,
-                  child: const Text(
-                    'Sold Out',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Text(
+                      'SOLD OUT',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Discount badge in top-left
+              if (discountPrice != null && discountPrice != price && isAvailable)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16A34A),
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      'DEAL',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
                 ),
 
@@ -83,7 +126,7 @@ class LunchProductCard extends StatelessWidget {
               Positioned(
                 bottom: 0, left: 0, right: 0,
                 child: Container(
-                  height: 90, // Reduced gradient height
+                  height: 95,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
@@ -99,44 +142,56 @@ class LunchProductCard extends StatelessWidget {
 
               // Product Info & Price
               Positioned(
-                bottom: 8, left: 10, right: 10,
+                bottom: 8, left: 10, right: 40,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       name,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.2),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.2,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       description,
-                      style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.8)),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
                       children: [
-                        if (discountPrice != null && discountPrice != price)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6, bottom: 2),
-                            child: Text(
-                              '₹$price',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: Colors.white.withValues(alpha: 0.5),
-                                decoration: TextDecoration.lineThrough,
-                              ),
-                            ),
-                          ),
                         Text(
                           '₹${discountPrice ?? price}',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
                         ),
+                        if (discountPrice != null && discountPrice != price) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '₹$price',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withValues(alpha: 0.5),
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -175,8 +230,8 @@ class LunchProductCard extends StatelessWidget {
                     } : null,
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      height: 30, // Reduced size
-                      width: 30, // Reduced size
+                      height: 32,
+                      width: 32,
                       decoration: BoxDecoration(
                         color: isAvailable ? const Color(0xFFF15A24) : Colors.grey.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
@@ -184,15 +239,15 @@ class LunchProductCard extends StatelessWidget {
                           BoxShadow(
                             color: const Color(0xFFF15A24).withValues(alpha: 0.4),
                             blurRadius: 6,
-                            offset: const Offset(0, 3),
+                            offset: const Offset(0, 2),
                           )
                         ],
                       ),
                       child: Center(
                         child: Icon(
-                          Icons.add,
+                          Icons.add_rounded,
                           color: isAvailable ? Colors.white : Colors.white54,
-                          size: 16,
+                          size: 20,
                         ),
                       ),
                     ),
