@@ -1,0 +1,21 @@
+﻿{
+  "name": "AniLunch Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/universal:latest",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.24"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Dart-Code.flutter",
+        "Dart-Code.dart-code",
+        "golang.go"
+      ]
+    }
+  },
+  "postCreateCommand": "git clone https://github.com/flutter/flutter.git -b stable /workspaces/flutter && echo 'export PATH=\"$PATH:/workspaces/flutter/bin\"' >> ~/.bashrc",
+  "forwardPorts": [8080, 3000, 3001, 3002, 3003, 5432, 6379, 4222]
+}
