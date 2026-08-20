@@ -11,6 +11,7 @@ class CatalogApi {
     final data = await _client.get<List<dynamic>>(
       '/api/v1/catalog/items',
       query: category == null ? null : {'category': category},
+      authenticated: false,
     );
     return data
         .map((e) => Item.fromJson(e as Map<String, dynamic>))
@@ -18,16 +19,20 @@ class CatalogApi {
   }
 
   Future<List<Menu>> menus() async {
-    final data =
-        await _client.get<List<dynamic>>('/api/v1/catalog/menus');
+    final data = await _client.get<List<dynamic>>(
+      '/api/v1/catalog/menus',
+      authenticated: false,
+    );
     return data
         .map((e) => Menu.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<DailyDeal>> deals() async {
-    final data =
-        await _client.get<List<dynamic>>('/api/v1/catalog/deals');
+    final data = await _client.get<List<dynamic>>(
+      '/api/v1/catalog/deals',
+      authenticated: false,
+    );
     return data
         .map((e) => DailyDeal.fromJson(e as Map<String, dynamic>))
         .toList();

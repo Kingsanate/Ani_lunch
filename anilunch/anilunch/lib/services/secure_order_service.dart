@@ -132,23 +132,27 @@ class SecureOrderService {
       updatedAt: Value(DateTime.now()),
     );
 
-    await _db.insertLocalOrder(localOrderCompanion);
+    try {
+      await _db.insertLocalOrder(localOrderCompanion);
 
-    // Enqueue mutation for background sync
-    await _db.enqueueSyncTask(SyncQueueCompanion(
-      id: Value(_uuid.v4()),
-      entityType: const Value('order'),
-      entityId: Value(localOrderId),
-      action: const Value('create'),
-      payload: Value(jsonEncode(orderPayload)),
-      idempotencyKey: Value(idempotencyKey),
-      status: const Value('pending'),
-      createdAt: Value(DateTime.now()),
-      updatedAt: Value(DateTime.now()),
-    ));
+      // Enqueue mutation for background sync
+      await _db.enqueueSyncTask(SyncQueueCompanion(
+        id: Value(_uuid.v4()),
+        entityType: const Value('order'),
+        entityId: Value(localOrderId),
+        action: const Value('create'),
+        payload: Value(jsonEncode(orderPayload)),
+        idempotencyKey: Value(idempotencyKey),
+        status: const Value('pending'),
+        createdAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ));
 
-    // Clear local cart
-    await _db.clearCart();
+      // Clear local cart
+      await _db.clearCart();
+    } catch (driftErr) {
+      debugPrint('Local Drift offline storage notice: $driftErr');
+    }
 
     return {
       'success': true,

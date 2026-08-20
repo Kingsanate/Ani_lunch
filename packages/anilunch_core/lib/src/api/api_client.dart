@@ -118,30 +118,34 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     T Function(Object? data)? transform,
+    bool authenticated = true,
   }) =>
-      _request('GET', path, query: query, transform: transform);
+      _request('GET', path, query: query, transform: transform, authenticated: authenticated);
 
   Future<T> post<T>(
     String path, {
     Object? body,
     T Function(Object? data)? transform,
+    bool authenticated = true,
   }) =>
-      _request('POST', path, body: body, transform: transform);
+      _request('POST', path, body: body, transform: transform, authenticated: authenticated);
 
   Future<T> put<T>(
     String path, {
     Object? body,
     T Function(Object? data)? transform,
+    bool authenticated = true,
   }) =>
-      _request('PUT', path, body: body, transform: transform);
+      _request('PUT', path, body: body, transform: transform, authenticated: authenticated);
 
   Future<T> delete<T>(
     String path, {
     Object? body,
     Map<String, dynamic>? query,
     T Function(Object? data)? transform,
+    bool authenticated = true,
   }) =>
-      _request('DELETE', path, body: body, query: query, transform: transform);
+      _request('DELETE', path, body: body, query: query, transform: transform, authenticated: authenticated);
 
   // ------------------------------------------------------------- internals
 
@@ -151,8 +155,9 @@ class ApiClient {
     Object? body,
     Map<String, dynamic>? query,
     T Function(Object? data)? transform,
+    bool authenticated = true,
   }) async {
-    final json = await _send(method, path, body: body, query: query);
+    final json = await _send(method, path, body: body, query: query, authenticated: authenticated);
     if (transform != null) {
       return transform(json);
     }
