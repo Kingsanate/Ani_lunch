@@ -5,8 +5,6 @@ import '../providers/menu_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/lunch_provider.dart';
-import '../views/lunch_checkout_sheet.dart';
 import '../widgets/hero_section.dart';
 import '../widgets/daily_deals.dart';
 import '../widgets/popular_categories.dart';
@@ -56,36 +54,6 @@ class _HomePageState extends State<HomePage> {
         });
       }
     } catch (_) {}
-  }
-
-  void _showOrderSheet() {
-    final cart = context.read<CartProvider>();
-    final menu = context.read<MenuProvider>();
-    final lunch = context.read<LunchProvider>();
-
-    final meatCartItems = cart.getCartItems(menu.itemsByCategory);
-    final lunchCart = lunch.cart;
-
-    final checkoutItems = [
-      ...lunchCart.map((item) => ({...item, 'isMeat': false})),
-      ...meatCartItems.map((item) => ({...item, 'isMeat': true})),
-    ];
-
-    if (checkoutItems.isEmpty) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => LunchCheckoutSheet(
-        cartItems: checkoutItems,
-        isLunchMode: lunchCart.isNotEmpty,
-        onSuccess: () {
-          lunch.clearCart();
-          cart.clearCart();
-        },
-      ),
-    );
   }
 
   @override
@@ -178,8 +146,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHomeContent(BuildContext context, MenuProvider menu, CartProvider cart) {
-    final bool isDesktop = MediaQuery.of(context).size.width > 900;
-    
     if (menu.isLoading && menu.categories.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFFF15A24)));
     }
@@ -203,68 +169,39 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    final meatTotal = cart.calculateTotal(menu.itemsByCategory);
-    final lunchTotal = context.watch<LunchProvider>().cartTotal;
-    final total = meatTotal + lunchTotal;
-    final hasItems = total > 0;
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: hasItems ? 200 : 130),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const HeroSection(),
-              if (menu.dailyDeals.isNotEmpty) DailyDeals(deals: menu.dailyDeals),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const HeroSection(),
+          if (menu.dailyDeals.isNotEmpty) DailyDeals(deals: menu.dailyDeals),
 
-              PopularCategories(
-                categories: menu.categories,
-                selectedId: menu.selectedCategoryId,
-                onSelected: (id) => menu.setSelectedCategory(id),
-              ),
-              if (menu.selectedCategoryId == 'meal')
-                const LunchSection()
-              else if (menu.selectedCategoryId != null)
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  if (menu.selectedCategoryId == 'all')
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: _buildMeatSubcategoryRow(menu),
-                    ),
-                  CategoryOptionsSection(
-                    key: ValueKey('cat_${menu.selectedCategoryId}_${menu.selectedMeatSubcategory}'),
-                    categoryId: menu.selectedCategoryId == 'all' ? menu.selectedMeatSubcategory : menu.selectedCategoryId!,
-                    allCategoryData: menu.itemsByCategory,
-                    categoryCarts: cart.meatCart,
-                    onToggleItem: (itemId, catId) => cart.toggleItem(itemId, catId),
-                  ),
-                ]),
-              const Footer(),
-            ],
+          PopularCategories(
+            categories: menu.categories,
+            selectedId: menu.selectedCategoryId,
+            onSelected: (id) => menu.setSelectedCategory(id),
           ),
-        ),
-        if (hasItems)
-          Positioned(
-            left: 0, right: 0, bottom: isDesktop ? 0 : 100,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, -4))]),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _showOrderSheet,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF15A24), foregroundColor: Colors.white,
-                    elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), padding: const EdgeInsets.symmetric(vertical: 16)),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Icon(Icons.shopping_bag_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Text('Confirm Order  \u2022  ₹$total', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ]),
+          if (menu.selectedCategoryId == 'meal')
+            const LunchSection()
+          else if (menu.selectedCategoryId != null)
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (menu.selectedCategoryId == 'all')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: _buildMeatSubcategoryRow(menu),
                 ),
+              CategoryOptionsSection(
+                key: ValueKey('cat_${menu.selectedCategoryId}_${menu.selectedMeatSubcategory}'),
+                categoryId: menu.selectedCategoryId == 'all' ? menu.selectedMeatSubcategory : menu.selectedCategoryId!,
+                allCategoryData: menu.itemsByCategory,
+                categoryCarts: cart.meatCart,
+                onToggleItem: (itemId, catId) => cart.toggleItem(itemId, catId),
               ),
-            ),
-          ),
-      ],
+            ]),
+          const Footer(),
+        ],
+      ),
     );
   }
 

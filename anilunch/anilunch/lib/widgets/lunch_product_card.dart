@@ -241,34 +241,38 @@ class LunchProductCard extends StatelessWidget {
 
   static String resolveDishImageUrl(String name, String? originalUrl) {
     final lower = name.toLowerCase();
+    if (lower.contains('mizo')) {
+      return 'assets/images/pork.png';
+    }
+    if (lower.contains('naga')) {
+      return 'assets/images/beef.png';
+    }
+    if (lower.contains('khasi')) {
+      return 'assets/images/chicken.png';
+    }
+    if (lower.contains('indian') || lower.contains('thali')) {
+      return 'assets/images/bento.png';
+    }
+    if (lower.contains('salad') || lower.contains('veg')) {
+      return 'assets/images/salad.png';
+    }
+    if (lower.contains('chicken') || lower.contains('biryani')) {
+      return 'assets/images/chicken.png';
+    }
+    if (lower.contains('pork') || lower.contains('mutton')) {
+      return 'assets/images/pork.png';
+    }
+    if (lower.contains('beef') || lower.contains('meat')) {
+      return 'assets/images/beef.png';
+    }
     if (originalUrl != null &&
         originalUrl.startsWith('http') &&
         !originalUrl.contains('shillong') &&
         !originalUrl.contains('teer') &&
-        !originalUrl.contains('dummy') &&
-        !originalUrl.contains('photo-1588117260148') &&
-        !originalUrl.contains('photo-1515886657613')) {
+        !originalUrl.contains('dummy')) {
       return originalUrl;
     }
-    if (lower.contains('mizo') || lower.contains('local') || lower.contains('tribal')) {
-      return 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&q=80';
-    }
-    if (lower.contains('indian') || lower.contains('thali')) {
-      return 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=800&q=80';
-    }
-    if (lower.contains('biryani')) {
-      return 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&q=80';
-    }
-    if (lower.contains('chicken')) {
-      return 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=600&q=80';
-    }
-    if (lower.contains('mutton') || lower.contains('pork')) {
-      return 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&q=80';
-    }
-    if (lower.contains('fish') || lower.contains('seafood')) {
-      return 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=800&q=80';
-    }
-    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80';
+    return 'assets/images/bento.png';
   }
 
   Widget _buildProductImage(String resolvedImage, String name) {
