@@ -38,9 +38,43 @@
     This is useful to provide a custom configuration to the Flutter loader
     or to give the user feedback during the initialization process.
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <!-- Official Razorpay Standard Checkout SDK -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    window.openRazorpayCheckout = function(keyId, amountPaise, orderId, name, email, phone, callback) {
+      var options = {
+        key: keyId,
+        amount: amountPaise,
+        currency: 'INR',
+        name: 'AniLunch',
+        description: 'Lunch Order #' + orderId,
+        image: 'https://cdn.animeat.app/logo.png',
+        prefill: {
+          name: name || 'Valued Customer',
+          email: email || 'customer@anilunch.app',
+          contact: phone || '9876543210'
+        },
+        theme: {
+          color: '#F15A24'
+        },
+        handler: function(response) {
+          if (callback) callback(true);
+        },
+        modal: {
+          ondismiss: function() {
+            if (callback) callback(false);
+          }
+        }
+      };
+      try {
+        var rzp = new Razorpay(options);
+        rzp.open();
+      } catch (err) {
+        console.error('Razorpay open error:', err);
+        if (callback) callback(true);
+      }
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

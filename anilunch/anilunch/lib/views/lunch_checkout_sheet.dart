@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';
+import '../providers/order_provider.dart';
+import '../services/payment_service.dart';
 import '../services/secure_order_service.dart';
 import '../widgets/lunch_product_card.dart';
 import 'order_success_page.dart';
@@ -238,12 +241,29 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
     final total = subtotal + _deliveryFee;
     final generatedOrderId = 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
 
+    final orderRecord = {
+      'id': generatedOrderId,
+      'user_id': user.id,
+      'total_amount': total,
+      'total': total,
+      'status': 'Pending',
+      'payment_method': _paymentMethod,
+      'payment_status': _paymentMethod == 'Online' ? 'paid' : 'pending',
+      'address': _address,
+      'delivery_fee': _deliveryFee,
+      'items': cleanItems,
+      'order_type': widget.isLunchMode ? 'lunch' : 'meat',
+      'order_time': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
     if (_paymentMethod == 'Online') {
       _showOnlinePaymentDialog(
         orderId: generatedOrderId,
         total: total,
         cleanItems: cleanItems,
         user: user,
+        orderRecord: orderRecord,
       );
       return;
     }
@@ -251,15 +271,6 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
     // -----------------------------------------------------------------
     // COD Instant Confirmation (Snappy, zero-delay response)
     // -----------------------------------------------------------------
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFF15A24)),
-      ),
-    );
-
-    // Save in background asynchronously without stalling user
     _persistOrderInBackground(
       orderId: generatedOrderId,
       user: user,
@@ -269,8 +280,9 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
       paymentStatus: 'pending',
     );
 
+    context.read<OrderProvider>().addPlacedOrder(orderRecord);
+
     final nav = Navigator.of(context, rootNavigator: true);
-    Navigator.pop(context); // close loading
     Navigator.pop(context); // close sheet
     
     if (widget.onSuccess != null) {
@@ -287,6 +299,7 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
     required int total,
     required List<Map<String, dynamic>> cleanItems,
     required User user,
+    required Map<String, dynamic> orderRecord,
   }) {
     showModalBottomSheet(
       context: context,
@@ -326,7 +339,7 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Razorpay Secure', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0C2340))),
-                              Text('256-bit Encrypted Payment', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                              Text('256-bit Encrypted Payment Gateway', style: TextStyle(fontSize: 11, color: Colors.grey)),
                             ],
                           ),
                         ],
@@ -363,8 +376,8 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
 
                   // UPI Option
                   _buildPaymentOptionTile(
-                    title: 'UPI (GPay / PhonePe / Paytm)',
-                    subtitle: 'Fast & Instant approval',
+                    title: 'UPI (GPay / PhonePe / Paytm / QR)',
+                    subtitle: 'Fast & Instant approval via Razorpay',
                     icon: Icons.flash_on_rounded,
                     iconColor: const Color(0xFF5F259F),
                     isSelected: selectedOnlineOption == 'upi',
@@ -402,30 +415,44 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                       onPressed: isProcessing ? null : () async {
                         setModalState(() => isProcessing = true);
 
-                        // Quick smooth authorization step
-                        await Future.delayed(const Duration(milliseconds: 600));
-
-                        // Persist in background as PAID
-                        _persistOrderInBackground(
+                        // Launch official Razorpay payment gateway
+                        final paid = await PaymentService.launchOfficialRazorpayCheckout(
                           orderId: orderId,
-                          user: user,
-                          total: total,
-                          cleanItems: cleanItems,
-                          paymentMethod: 'Online',
-                          paymentStatus: 'paid',
+                          amountRupees: total,
+                          customerName: user.userMetadata?['name']?.toString() ?? 'Valued Customer',
+                          customerEmail: user.email ?? 'customer@anilunch.app',
+                          customerPhone: user.phone ?? '9876543210',
                         );
 
-                        final nav = Navigator.of(context, rootNavigator: true);
-                        Navigator.of(sheetContext).pop(); // close online payment sheet
-                        Navigator.of(context).pop(); // close checkout sheet
+                        if (paid) {
+                          // Persist in background as PAID
+                          _persistOrderInBackground(
+                            orderId: orderId,
+                            user: user,
+                            total: total,
+                            cleanItems: cleanItems,
+                            paymentMethod: 'Online',
+                            paymentStatus: 'paid',
+                          );
 
-                        if (widget.onSuccess != null) {
-                          widget.onSuccess!();
+                          final nav = Navigator.of(context, rootNavigator: true);
+                          Navigator.of(sheetContext).pop(); // close online payment sheet
+                          Navigator.of(this.context).pop(); // close checkout sheet
+
+                          if (this.context.mounted) {
+                            this.context.read<OrderProvider>().addPlacedOrder(orderRecord);
+                          }
+
+                          if (widget.onSuccess != null) {
+                            widget.onSuccess!();
+                          }
+
+                          nav.push(
+                            MaterialPageRoute(builder: (_) => OrderSuccessPage(orderId: orderId)),
+                          );
+                        } else {
+                          setModalState(() => isProcessing = false);
                         }
-
-                        nav.push(
-                          MaterialPageRoute(builder: (_) => OrderSuccessPage(orderId: orderId)),
-                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF16A34A),
@@ -439,10 +466,10 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                               children: [
                                 SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
                                 SizedBox(width: 12),
-                                Text('Verifying Payment...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                Text('Connecting to Razorpay...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               ],
                             )
-                          : Text('Pay ₹$total Securely', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          : Text('Pay ₹$total with Razorpay', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/cart_provider.dart';
 import '../providers/lunch_provider.dart';
 import '../widgets/cart_item_details_dialog.dart';
 import '../providers/menu_provider.dart';
+import '../widgets/lunch_product_card.dart';
 import '../views/lunch_checkout_sheet.dart';
 
 class CartPage extends StatelessWidget {
@@ -202,9 +202,21 @@ class CartPage extends StatelessWidget {
             // Compact Image
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: imageUrl != null && imageUrl.isNotEmpty
-                ? CachedNetworkImage(imageUrl: imageUrl, width: 64, height: 64, fit: BoxFit.cover)
-                : Container(width: 64, height: 64, color: Colors.grey[100], child: const Icon(Icons.fastfood, color: Colors.grey, size: 24)),
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: () {
+                  final resolved = LunchProductCard.resolveDishImageUrl(title, imageUrl);
+                  if (resolved.startsWith('assets/')) {
+                    return Image.asset(resolved, fit: BoxFit.cover);
+                  }
+                  return Image.network(
+                    resolved,
+                    fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => Image.asset('assets/images/bento.png', fit: BoxFit.cover),
+                  );
+                }(),
+              ),
             ),
             const SizedBox(width: 14),
             // Details

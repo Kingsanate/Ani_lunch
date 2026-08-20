@@ -46,10 +46,9 @@ class _HomePageState extends State<HomePage> {
     final auth = context.read<AuthProvider>();
     _fetchProfile(auth.user);
     final order = context.read<OrderProvider>();
-    if (auth.user != null) {
-      order.fetchOrders(auth.user!.id, isLunchMode: true);
-      order.subscribeToUpdates(auth.user!.id, isLunchMode: true);
-    }
+    final userId = auth.user?.id ?? Supabase.instance.client.auth.currentUser?.id ?? 'guest-user';
+    order.fetchOrders(userId, isLunchMode: true);
+    order.subscribeToUpdates(userId, isLunchMode: true);
   }
 
   Future<void> _fetchProfile(User? user) async {

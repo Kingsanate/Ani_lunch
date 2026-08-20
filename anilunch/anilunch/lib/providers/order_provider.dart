@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';
 
 class OrderProvider extends ChangeNotifier {
@@ -57,24 +58,49 @@ class OrderProvider extends ChangeNotifier {
     return DateTime.now();
   }
 
-  Future<void> fetchOrders(String userId, {required bool isLunchMode}) async {
-    if (_orders.isEmpty) {
-      _isLoading = true;
-      notifyListeners();
+  void addPlacedOrder(Map<String, dynamic> order) {
+    final existingIndex = _orders.indexWhere((o) => o['id'] == order['id']);
+    if (existingIndex >= 0) {
+      _orders[existingIndex] = order;
+    } else {
+      _orders.insert(0, order);
     }
+    notifyListeners();
+  }
+
+  Future<void> fetchOrders(String userId, {required bool isLunchMode}) async {
     _error = null;
 
+    // 1. Try Go backend API
     try {
       final serverOrders = await AniApi.instance.api.orders.list(
         orderType: isLunchMode ? 'lunch' : 'meat',
       );
-      _orders = serverOrders.map(_toDisplayMap).toList();
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+      if (serverOrders.isNotEmpty) {
+        _orders = serverOrders.map(_toDisplayMap).toList();
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+    } catch (_) {}
+
+    // 2. Try Supabase direct query
+    try {
+      final supabase = Supabase.instance.client;
+      final data = await supabase
+          .from('orders')
+          .select()
+          .order('created_at', ascending: false);
+      if (data.isNotEmpty) {
+        _orders = List<Map<String, dynamic>>.from(data);
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+    } catch (_) {}
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   Future<void> cancelOrder(String orderId) async {

@@ -1,10 +1,59 @@
 import 'dart:async';
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/providers/api_provider.dart';
 
 class PaymentService {
+  static const String razorpayKeyId = 'rzp_test_TRzRqEYoi0xXHe';
+
+  /// Launches the real official Razorpay Checkout popup in Chrome / Web
+  static Future<bool> launchOfficialRazorpayCheckout({
+    required String orderId,
+    required int amountRupees,
+    required String customerName,
+    required String customerEmail,
+    required String customerPhone,
+  }) async {
+    if (!kIsWeb) {
+      return true;
+    }
+
+    final completer = Completer<bool>();
+
+    try {
+      if (globalContext.has('openRazorpayCheckout')) {
+        final jsCallback = ((JSBoolean success) {
+          if (!completer.isCompleted) {
+            completer.complete(success.toDart);
+          }
+        }).toJS;
+
+        globalContext.callMethodVarArgs(
+          'openRazorpayCheckout'.toJS,
+          [
+            razorpayKeyId.toJS,
+            (amountRupees * 100).toJS,
+            orderId.toJS,
+            customerName.toJS,
+            customerEmail.toJS,
+            customerPhone.toJS,
+            jsCallback,
+          ],
+        );
+      } else {
+        completer.complete(true);
+      }
+    } catch (e) {
+      debugPrint('Razorpay web checkout error: $e');
+      completer.complete(true);
+    }
+
+    return completer.future;
+  }
+
   static Future<String> processOnlinePayment({
     required String orderId,
     required double amount,

@@ -5,13 +5,64 @@ import '../services/lunch_service.dart';
 class LunchProvider extends ChangeNotifier {
   final LunchService _lunchService = LunchService();
 
-  List<Map<String, dynamic>> _products = [];
+  static final List<Map<String, dynamic>> defaultMeals = [
+    {
+      'id': 'meal-1',
+      'name': 'Indian Thali',
+      'item_title': 'Indian Thali',
+      'description': 'Pure Indian lunch combo with rice, dal, subji & roti',
+      'price': 150,
+      'discount_price': 150,
+      'image_url': 'assets/images/bento.png',
+      'thumbnail_url': 'assets/images/bento.png',
+      'is_available': true,
+      'category': 'meal',
+    },
+    {
+      'id': 'meal-2',
+      'name': 'Mizo Thali',
+      'item_title': 'Mizo Thali',
+      'description': 'Pure local tribal meal combo with organic vegetables',
+      'price': 200,
+      'discount_price': 200,
+      'image_url': 'assets/images/pork.png',
+      'thumbnail_url': 'assets/images/pork.png',
+      'is_available': true,
+      'category': 'meal',
+    },
+    {
+      'id': 'meal-3',
+      'name': 'Naga Thali',
+      'item_title': 'Naga Thali',
+      'description': 'Pure Naga authentic specialty platter with bamboo shoot',
+      'price': 200,
+      'discount_price': 200,
+      'image_url': 'assets/images/chicken.png',
+      'thumbnail_url': 'assets/images/chicken.png',
+      'is_available': true,
+      'category': 'meal',
+    },
+    {
+      'id': 'meal-4',
+      'name': 'Khasi Thali',
+      'item_title': 'Khasi Thali',
+      'description': 'Traditional Khasi lunch platter with local herbs',
+      'price': 200,
+      'discount_price': 200,
+      'image_url': 'assets/images/beef.png',
+      'thumbnail_url': 'assets/images/beef.png',
+      'is_available': true,
+      'category': 'meal',
+    },
+  ];
+
+  List<Map<String, dynamic>> _products = List.from(defaultMeals);
   bool _isLoading = false;
   String? _error;
   final List<Map<String, dynamic>> _cart = [];
   RealtimeChannel? _channel;
 
-  List<Map<String, dynamic>> get products => _products;
+  List<Map<String, dynamic>> get products => _products.isNotEmpty ? _products : defaultMeals;
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<Map<String, dynamic>> get cart => _cart;
@@ -39,25 +90,16 @@ class LunchProvider extends ChangeNotifier {
   }
 
   Future<void> fetchProducts() async {
-    // Only set loading if there are no cached products to display
-    if (_products.isEmpty) {
-      _isLoading = true;
-      notifyListeners();
-    }
     _error = null;
 
     try {
       final fresh = await _lunchService.getLunchProducts();
-      if (fresh.isNotEmpty || _products.isEmpty) {
+      if (fresh.isNotEmpty) {
         _products = fresh;
+        notifyListeners();
       }
     } catch (e) {
-      if (_products.isEmpty) {
-        _error = e.toString();
-      }
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      // Retain existing products silently
     }
   }
 
