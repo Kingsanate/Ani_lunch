@@ -165,24 +165,44 @@ class _OrdersPageState extends State<OrdersPage> {
               ]),
             ),
             Expanded(
-              child: orders.isEmpty
-                  ? _buildEmptyState(context)
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      children: [
-                        if (todayOrders.isNotEmpty) ...[
-                          Padding(padding: const EdgeInsets.only(bottom: 12, left: 4),
-                            child: Text("Today's Orders", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textColor))),
-                          ...todayOrders.map((order) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildOrderCard(order, context))),
+              child: RefreshIndicator(
+                color: _primaryColor,
+                onRefresh: () async {
+                  final user = Supabase.instance.client.auth.currentUser;
+                  if (user != null) {
+                    await context.read<OrderProvider>().fetchOrders(user.id, isLunchMode: true);
+                  }
+                },
+                child: orders.isEmpty
+                    ? SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.7,
+                          child: _buildEmptyState(context),
+                        ),
+                      )
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        children: [
+                          if (todayOrders.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12, left: 4),
+                              child: Text("Today's Orders", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textColor)),
+                            ),
+                            ...todayOrders.map((order) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildOrderCard(order, context))),
+                          ],
+                          if (pastOrders.isNotEmpty) ...[
+                            if (todayOrders.isNotEmpty) const SizedBox(height: 16),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12, left: 4),
+                              child: Text('Past Orders', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textColor)),
+                            ),
+                            ...pastOrders.map((order) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildOrderCard(order, context))),
+                          ],
                         ],
-                        if (pastOrders.isNotEmpty) ...[
-                          if (todayOrders.isNotEmpty) const SizedBox(height: 16),
-                          Padding(padding: const EdgeInsets.only(bottom: 12, left: 4),
-                            child: Text("Past Orders", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textColor))),
-                          ...pastOrders.map((order) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildOrderCard(order, context))),
-                        ],
-                      ],
-                    ),
+                      ),
+              ),
             ),
           ],
         ),
