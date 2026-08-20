@@ -52,13 +52,24 @@ func notificationForEvent(event *OrderEventPayload) *notificationRecipient {
 	return nil
 }
 
+// PushSender delivers push notifications (e.g. FCM/APNs) to mobile devices.
+type PushSender interface {
+	SendToUser(ctx context.Context, userID, title, body string, data map[string]string) error
+}
+
 type EventConsumer struct {
-	js jetstream.JetStream
-	db *database.Postgres
+	js     jetstream.JetStream
+	db     *database.Postgres
+	pusher PushSender
 }
 
 func NewEventConsumer(js jetstream.JetStream, db *database.Postgres) *EventConsumer {
 	return &EventConsumer{js: js, db: db}
+}
+
+func (c *EventConsumer) WithPusher(pusher PushSender) *EventConsumer {
+	c.pusher = pusher
+	return c
 }
 
 // StartNotificationWorker consumes order lifecycle events and writes user
@@ -136,6 +147,15 @@ func (c *EventConsumer) persistNotification(ctx context.Context, event *OrderEve
 		ON CONFLICT (source_event_id) DO NOTHING
 	`, recipient.UserID, recipient.Title, recipient.Body, recipient.Type,
 		event.OrderID, event.EventID, event.Timestamp)
+
+	if err == nil && c.pusher != nil {
+		_ = c.pusher.SendToUser(ctx, recipient.UserID, recipient.Title, recipient.Body, map[string]string{
+			"order_id":          event.OrderID,
+			"event_type":        event.EventType,
+			"status":            event.Status,
+			"notification_type": recipient.Type,
+		})
+	}
 	return err
 }
 

@@ -137,9 +137,11 @@ class ApiClient {
 
   Future<T> delete<T>(
     String path, {
+    Object? body,
+    Map<String, dynamic>? query,
     T Function(Object? data)? transform,
   }) =>
-      _request('DELETE', path, transform: transform);
+      _request('DELETE', path, body: body, query: query, transform: transform);
 
   // ------------------------------------------------------------- internals
 

@@ -25,6 +25,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Put("/me", h.UpdateProfile)
 	r.Get("/me/notifications", h.ListNotifications)
 	r.Post("/me/notifications/read", h.MarkNotificationsRead)
+	r.Post("/me/device-tokens", h.RegisterDeviceToken)
+	r.Delete("/me/device-tokens", h.UnregisterDeviceToken)
 
 	return r
 }
@@ -110,4 +112,53 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	platform.RespondJSON(w, http.StatusOK, user)
+}
+
+type DeviceTokenRequest struct {
+	Token    string `json:"token"`
+	Platform string `json:"platform"` // "android", "ios", "web"
+}
+
+// RegisterDeviceToken associates an FCM push token with the authenticated user.
+func (h *Handler) RegisterDeviceToken(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		platform.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required", "")
+		return
+	}
+
+	var req DeviceTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		platform.RespondError(w, http.StatusBadRequest, "INVALID_BODY", "Device token is required", "")
+		return
+	}
+
+	if err := h.service.RegisterDeviceToken(r.Context(), userID, req.Token, req.Platform); err != nil {
+		platform.RespondError(w, http.StatusInternalServerError, "REGISTRATION_FAILED", "Could not register device token", err.Error())
+		return
+	}
+
+	platform.RespondJSON(w, http.StatusOK, map[string]string{"status": "registered"})
+}
+
+// UnregisterDeviceToken removes a device token when the user logs out.
+func (h *Handler) UnregisterDeviceToken(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		platform.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required", "")
+		return
+	}
+
+	var req DeviceTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		platform.RespondError(w, http.StatusBadRequest, "INVALID_BODY", "Device token is required", "")
+		return
+	}
+
+	if err := h.service.UnregisterDeviceToken(r.Context(), userID, req.Token); err != nil {
+		platform.RespondError(w, http.StatusInternalServerError, "UNREGISTRATION_FAILED", "Could not unregister device token", err.Error())
+		return
+	}
+
+	platform.RespondJSON(w, http.StatusOK, map[string]string{"status": "unregistered"})
 }

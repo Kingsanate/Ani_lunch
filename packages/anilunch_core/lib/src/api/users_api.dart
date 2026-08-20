@@ -33,4 +33,18 @@ class UsersApi {
   Future<void> markNotificationsRead() async {
     await _client.post('/api/v1/users/me/notifications/read');
   }
+
+  Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {
+    await _client.post(
+      '/api/v1/users/me/device-tokens',
+      body: {'token': token, 'platform': platform},
+    );
+  }
+
+  Future<void> unregisterDeviceToken(String token) async {
+    await _client.delete(
+      '/api/v1/users/me/device-tokens',
+      body: {'token': token},
+    );
+  }
 }

@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	"animeat/backend/internal/modules/vendors"
 	"animeat/backend/internal/modules/auth"
 	"animeat/backend/internal/modules/media"
+	"animeat/backend/internal/notifications"
 	"animeat/backend/internal/observability"
 	"animeat/backend/internal/platform"
 	"animeat/backend/internal/realtime"
@@ -91,7 +92,8 @@ func main() {
 	if natsClient != nil && natsClient.JS != nil {
 		eventPublisher = events.NewEventPublisher(natsClient.JS).
 			WithCoreConn(natsClient.Conn)
-		eventConsumer := events.NewEventConsumer(natsClient.JS, pg)
+		pusher := notifications.NewPusher(pg, cfg)
+		eventConsumer := events.NewEventConsumer(natsClient.JS, pg).WithPusher(pusher)
 
 		// Start background durable event workers
 		_ = eventConsumer.StartKitchenDispatchWorker(ctx)

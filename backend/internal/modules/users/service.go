@@ -126,6 +126,34 @@ func (s *Service) MarkNotificationsRead(ctx context.Context, userID string) erro
 	return nil
 }
 
+// RegisterDeviceToken stores an FCM device token for push notifications (idempotent upsert).
+func (s *Service) RegisterDeviceToken(ctx context.Context, userID, token, platformType string) error {
+	if s.db == nil || s.db.Pool == nil {
+		return nil
+	}
+	if platformType == "" {
+		platformType = "android"
+	}
+	_, err := s.db.Pool.Exec(ctx, `
+		INSERT INTO user_device_tokens (user_id, token, platform, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (user_id, token) DO UPDATE
+		SET platform = EXCLUDED.platform, updated_at = NOW()
+	`, userID, token, platformType)
+	return err
+}
+
+// UnregisterDeviceToken removes a device token when user logs out.
+func (s *Service) UnregisterDeviceToken(ctx context.Context, userID, token string) error {
+	if s.db == nil || s.db.Pool == nil {
+		return nil
+	}
+	_, err := s.db.Pool.Exec(ctx, `
+		DELETE FROM user_device_tokens WHERE user_id = $1 AND token = $2
+	`, userID, token)
+	return err
+}
+
 func valueOrEmpty(v *string) string {
 	if v == nil {
 		return ""
