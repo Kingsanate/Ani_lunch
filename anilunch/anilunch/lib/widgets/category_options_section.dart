@@ -132,8 +132,8 @@ class CategoryOptionsSection extends StatelessWidget {
         width: 100,
         height: 100,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Container(width: 100, height: 100, color: Colors.grey[100], child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))),
-        errorWidget: (context, url, error) => Container(width: 100, height: 100, color: Colors.grey[200], child: const Icon(Icons.error_outline)),
+        placeholder: (context, url) => Container(width: 100, height: 100, color: Colors.grey[100], child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Color(0xFFF15A24), strokeWidth: 2)))),
+        errorWidget: (context, url, error) => Image.asset('assets/images/bento.png', width: 100, height: 100, fit: BoxFit.cover),
       );
     }
     return Image.asset(imagePath, width: 100, height: 100, fit: BoxFit.cover);
