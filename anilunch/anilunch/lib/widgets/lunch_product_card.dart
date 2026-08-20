@@ -23,6 +23,7 @@ class LunchProductCard extends StatelessWidget {
     final discountPrice = product['discount_price'];
     final imageUrl = product['image_url']?.toString();
     final isAvailable = product['is_available'] == true;
+    final resolvedImage = resolveDishImageUrl(name, imageUrl);
 
     return BouncyTap(
       onTap: () {
@@ -30,7 +31,10 @@ class LunchProductCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => LunchProductDetailsView(
-              product: product,
+              product: {
+                ...product,
+                'image_url': resolvedImage,
+              },
               onAddToCart: onAddToCart,
             ),
           ),
@@ -54,18 +58,15 @@ class LunchProductCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               // Edge-to-edge Background Image
-              if (imageUrl != null && imageUrl.isNotEmpty)
-                Hero(
-                  tag: 'product-${product['id']}',
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: Colors.grey[100]),
-                    errorWidget: (context, url, error) => _buildPlaceholder(),
-                  ),
-                )
-              else
-                _buildPlaceholder(),
+              Hero(
+                tag: 'product-${product['id']}',
+                child: CachedNetworkImage(
+                  imageUrl: resolvedImage,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(color: Colors.grey[100]),
+                  errorWidget: (context, url, error) => _buildPlaceholder(),
+                ),
+              ),
 
               // Dark overlay if out of stock
               if (!isAvailable)
@@ -259,6 +260,38 @@ class LunchProductCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String resolveDishImageUrl(String name, String? originalUrl) {
+    final lower = name.toLowerCase();
+    if (originalUrl != null &&
+        originalUrl.startsWith('http') &&
+        !originalUrl.contains('shillong') &&
+        !originalUrl.contains('teer') &&
+        !originalUrl.contains('dummy') &&
+        !originalUrl.contains('photo-1588117260148') &&
+        !originalUrl.contains('photo-1515886657613')) {
+      return originalUrl;
+    }
+    if (lower.contains('mizo') || lower.contains('local') || lower.contains('tribal')) {
+      return 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&q=80';
+    }
+    if (lower.contains('indian') || lower.contains('thali')) {
+      return 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=800&q=80';
+    }
+    if (lower.contains('biryani')) {
+      return 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&q=80';
+    }
+    if (lower.contains('chicken')) {
+      return 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=600&q=80';
+    }
+    if (lower.contains('mutton') || lower.contains('pork')) {
+      return 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&q=80';
+    }
+    if (lower.contains('fish') || lower.contains('seafood')) {
+      return 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=800&q=80';
+    }
+    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80';
   }
 
   Widget _buildPlaceholder() {

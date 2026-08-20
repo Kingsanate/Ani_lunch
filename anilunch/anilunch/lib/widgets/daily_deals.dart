@@ -41,7 +41,7 @@ class DailyDeals extends StatelessWidget {
           const Text('Daily Deals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF2C1A0E))),
           const SizedBox(height: 12),
           SizedBox(
-            height: 90,
+            height: 104,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),

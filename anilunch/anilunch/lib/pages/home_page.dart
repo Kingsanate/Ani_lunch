@@ -492,7 +492,7 @@ final total = cart.calculateTotal(menu.itemsByCategory);
     return Stack(
       children: [
         SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: hasItems ? 180 : 100),
+          padding: EdgeInsets.only(bottom: hasItems ? 200 : 130),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
