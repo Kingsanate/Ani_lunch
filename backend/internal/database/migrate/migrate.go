@@ -3,6 +3,8 @@ package migrate
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -10,9 +12,29 @@ import (
 	"animeat/backend/internal/config"
 )
 
+func findMigrationsPath() string {
+	candidates := []string{
+		"../supabase/migrations",
+		"../../supabase/migrations",
+		"./supabase/migrations",
+		"supabase/migrations",
+		"/app/supabase/migrations",
+	}
+	for _, c := range candidates {
+		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+			abs, err := filepath.Abs(c)
+			if err == nil {
+				return "file://" + filepath.ToSlash(abs)
+			}
+			return "file://" + c
+		}
+	}
+	return "file://../supabase/migrations"
+}
+
 // RunMigrations runs all pending migrations against the database.
 func RunMigrations(cfg *config.Config) error {
-	migrationsPath := "file://../../supabase/migrations"
+	migrationsPath := findMigrationsPath()
 	
 	// Use the database URL from config but ensure it points to the actual postgres port
 	// In production, this would go through PgBouncer; for migrations we can go direct

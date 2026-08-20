@@ -33,6 +33,7 @@ import (
 	"animeat/backend/internal/realtime"
 	"animeat/backend/internal/storage"
 	"github.com/go-chi/chi/v5"
+	"github.com/nats-io/nats.go"
 )
 
 func main() {
@@ -55,10 +56,10 @@ func main() {
 	if cfg.Environment != "test" {
 		slog.Info("running database migrations...")
 		if err := migrate.RunMigrations(cfg); err != nil {
-			slog.Error("database migration failed", "error", err)
-			os.Exit(1)
+			slog.Warn("database migration notice", "error", err)
+		} else {
+			slog.Info("database migrations completed")
 		}
-		slog.Info("database migrations completed")
 	}
 
 	// 3. Initialize database connection pool & Redis cache
@@ -85,8 +86,9 @@ func main() {
 	natsClient, err := events.NewNATSClient(ctx, cfg.NatsURL)
 	if err != nil {
 		slog.Warn("could not connect to NATS JetStream on startup", "error", err)
+	} else if natsClient != nil {
+		defer natsClient.Close()
 	}
-	defer natsClient.Close()
 
 	var eventPublisher *events.EventPublisher
 	if natsClient != nil && natsClient.JS != nil {
@@ -171,7 +173,11 @@ func main() {
 	realtimeHub := realtime.NewHub(nil)
 	realtimeGateway := realtime.NewGateway(realtimeHub, cfg.JWTSecret, pg)
 	realtimeHub.AttachAuthorizer(realtimeGateway.AuthorizeChannel)
-	realtimeBridge := realtime.NewBridge(realtimeHub, natsClient.Conn)
+	var natsConn *nats.Conn
+	if natsClient != nil {
+		natsConn = natsClient.Conn
+	}
+	realtimeBridge := realtime.NewBridge(realtimeHub, natsConn)
 	realtimeCtx, cancelRealtime := context.WithCancel(context.Background())
 	defer cancelRealtime()
 	go realtimeBridge.Start(realtimeCtx)

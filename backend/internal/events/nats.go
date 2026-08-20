@@ -70,10 +70,11 @@ func NewNATSClient(ctx context.Context, natsURL string) (*NATSClient, error) {
 	return client, nil
 }
 
-// Close gracefully closes the NATS connection.
+// Close terminates the NATS connection.
 func (n *NATSClient) Close() {
-	if n.Conn != nil {
-		_ = n.Conn.Drain()
-		n.Conn.Close()
+	if n == nil || n.Conn == nil {
+		return
 	}
+	_ = n.Conn.Drain()
+	n.Conn.Close()
 }
