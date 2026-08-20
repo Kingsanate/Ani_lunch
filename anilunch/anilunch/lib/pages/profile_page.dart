@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/lunch_provider.dart';
+import '../providers/order_provider.dart';
 import '../models/smart_image.dart';
 import 'auth_page.dart';
 import 'edit_information_page.dart';
@@ -133,6 +134,7 @@ class ProfilePage extends StatelessWidget {
                           try {
                             context.read<LunchProvider>().clearCart();
                             context.read<CartProvider>().clearCart();
+                            context.read<OrderProvider>().clearOrders();
                             await context.read<AuthProvider>().signOut();
                           } catch (e) {
                             debugPrint('SignOut exception: $e');

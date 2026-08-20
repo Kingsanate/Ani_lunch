@@ -58,7 +58,18 @@ class OrderProvider extends ChangeNotifier {
     return DateTime.now();
   }
 
+  void clearOrders() {
+    _orders = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   void addPlacedOrder(Map<String, dynamic> order) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (order['user_id'] != null && currentUserId != null && order['user_id'] != currentUserId) {
+      return; // Do not add another user's order
+    }
     final existingIndex = _orders.indexWhere((o) => o['id'] == order['id']);
     if (existingIndex >= 0) {
       _orders[existingIndex] = order;
@@ -71,33 +82,44 @@ class OrderProvider extends ChangeNotifier {
   Future<void> fetchOrders(String userId, {required bool isLunchMode}) async {
     _error = null;
 
-    // 1. Try Go backend API
+    if (userId.isEmpty || userId == 'guest-user') {
+      _orders = [];
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    // 1. Try Go backend API strictly scoped to this user
     try {
       final serverOrders = await AniApi.instance.api.orders.list(
         orderType: isLunchMode ? 'lunch' : 'meat',
       );
       if (serverOrders.isNotEmpty) {
-        _orders = serverOrders.map(_toDisplayMap).toList();
+        _orders = serverOrders
+            .where((o) => o.userId == userId)
+            .map(_toDisplayMap)
+            .toList();
         _isLoading = false;
         notifyListeners();
         return;
       }
     } catch (_) {}
 
-    // 2. Try Supabase direct query
+    // 2. Try Supabase direct query strictly filtered by user_id
     try {
       final supabase = Supabase.instance.client;
       final data = await supabase
           .from('orders')
           .select()
+          .eq('user_id', userId)
           .order('created_at', ascending: false);
-      if (data.isNotEmpty) {
-        _orders = List<Map<String, dynamic>>.from(data);
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-    } catch (_) {}
+      _orders = List<Map<String, dynamic>>.from(data);
+      _isLoading = false;
+      notifyListeners();
+      return;
+    } catch (e) {
+      debugPrint('Supabase user orders fetch error: $e');
+    }
 
     _isLoading = false;
     notifyListeners();
