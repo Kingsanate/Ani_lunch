@@ -66,17 +66,20 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildMenuOption(IconData icon, String title, {bool isDestructive = false, VoidCallback? onTap}) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: isDestructive ? Colors.red.withValues(alpha: 0.1) : const Color(0xFFF15A24).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, color: isDestructive ? Colors.red : const Color(0xFFF15A24), size: 18),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: isDestructive ? Colors.red.withValues(alpha: 0.1) : const Color(0xFFF15A24).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, color: isDestructive ? Colors.red : const Color(0xFFF15A24), size: 18),
+        ),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDestructive ? Colors.red : const Color(0xFF2C1A0E))),
+        trailing: isDestructive ? null : Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+        visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+        onTap: onTap ?? () {},
       ),
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDestructive ? Colors.red : const Color(0xFF2C1A0E))),
-      trailing: isDestructive ? null : Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-      visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
-      onTap: onTap ?? () {},
     );
   }
 
