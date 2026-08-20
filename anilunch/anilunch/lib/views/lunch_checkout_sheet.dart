@@ -266,6 +266,10 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
               : (order?['id'] ?? result['order_id']).toString();
           isOfflineDraft = result['is_offline_draft'] == true;
         }
+      } catch (e) {
+        debugPrint('API order placement notice: $e');
+      }
+
       if (newOrderId.isEmpty) {
         try {
           final supabase = Supabase.instance.client;

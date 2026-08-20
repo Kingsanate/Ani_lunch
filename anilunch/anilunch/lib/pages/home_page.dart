@@ -308,11 +308,15 @@ final total = cart.calculateTotal(menu.itemsByCategory);
                                       : (order?['id'] ?? result['order_id']).toString();
                                   isOfflineDraft = result['is_offline_draft'] == true;
                                 }
+                              } catch (e) {
+                                debugPrint('API order placement notice: $e');
+                              }
+
                               if (newOrderId.isEmpty) {
                                 try {
                                   final supabase = Supabase.instance.client;
                                   final orderRes = await supabase.from('orders').insert({
-                                    'user_id': user.id,
+                                    'user_id': user?.id,
                                     'total_amount': total + deliveryFee,
                                     'status': 'pending',
                                     'payment_method': selectedPaymentMethod,
