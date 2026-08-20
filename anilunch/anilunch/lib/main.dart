@@ -26,8 +26,12 @@ Future<void> main() async {
       debugPrint('Warning: Could not load .env file: $e');
     }
 
-    final supabaseUrl = dotenv.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '';
-    final supabaseKey = dotenv.env['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY'] ?? '';
+    final supabaseUrl = dotenv.env['SUPABASE_URL'] ??
+        dotenv.env['NEXT_PUBLIC_SUPABASE_URL'] ??
+        'https://mujsywfelxqvkgvocdrn.supabase.co';
+    final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ??
+        dotenv.env['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY'] ??
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11anN5d2ZlbHhxdmtndm9jZHJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjUyNTMsImV4cCI6MjA5MTg0MTI1M30.cvA3WwhiPD8HX2Dnlt9YbKCyp--xUkkN94H3BYETPj4';
 
     if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
       debugPrint('ERROR: Supabase credentials are missing from .env');
