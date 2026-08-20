@@ -125,49 +125,21 @@ class _EditInformationPageState extends State<EditInformationPage> {
       String? imageUrl;
       if (_pickedBytes != null || _imageFile != null) {
         final bytes = _pickedBytes ?? await _imageFile!.readAsBytes();
+        imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+        // Background storage upload without blocking save completion
         final path = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-        bool uploaded = false;
-        for (final bucket in ['users', 'avatars', 'images', 'public']) {
-          try {
-            await Supabase.instance.client.storage.from(bucket).uploadBinary(
-              path,
-              bytes,
-              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-            );
-            imageUrl = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
-            uploaded = true;
-            break;
-          } catch (e) {
-            debugPrint('Storage upload bucket $bucket notice: $e');
-          }
-        }
-
-        if (!uploaded || imageUrl == null) {
-          imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-        }
+        Supabase.instance.client.storage.from('users').uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+        ).then((_) {
+          final pubUrl = Supabase.instance.client.storage.from('users').getPublicUrl(path);
+          Supabase.instance.client.from('users').update({'profile_image_url': pubUrl}).eq('user_id', user.id);
+        }).catchError((_) {});
       }
 
       final resolvedImageUrl = imageUrl ?? _existingImageUrl;
-
-      // 1. Update Supabase Auth User Metadata
-      try {
-        await Supabase.instance.client.auth.updateUser(
-          UserAttributes(
-            data: {
-              'full_name': _nameController.text.trim(),
-              'phone_number': _phoneController.text.trim(),
-              'address': _addressController.text.trim(),
-              'pin_code': _pincodeController.text.trim(),
-              if (resolvedImageUrl != null) 'profile_image_url': resolvedImageUrl,
-            },
-          ),
-        );
-      } catch (authErr) {
-        debugPrint('Auth metadata update notice: $authErr');
-      }
-
-      // 2. Update Database 'users' profile table
       final updateData = {
         'id': user.id,
         'user_id': user.id,
@@ -180,11 +152,21 @@ class _EditInformationPageState extends State<EditInformationPage> {
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      try {
-        await Supabase.instance.client.from('users').upsert(updateData);
-      } catch (dbErr) {
-        debugPrint('DB user table upsert notice: $dbErr');
-      }
+      // Perform auth metadata and database upsert in parallel for instant sub-second response
+      await Future.wait([
+        Supabase.instance.client.auth.updateUser(
+          UserAttributes(
+            data: {
+              'full_name': _nameController.text.trim(),
+              'phone_number': _phoneController.text.trim(),
+              'address': _addressController.text.trim(),
+              'pin_code': _pincodeController.text.trim(),
+              if (resolvedImageUrl != null) 'profile_image_url': resolvedImageUrl,
+            },
+          ),
+        ).then((_) => null).catchError((_) => null),
+        Supabase.instance.client.from('users').upsert(updateData).then((_) => null).catchError((_) => null),
+      ]);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -199,6 +181,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
             backgroundColor: const Color(0xFF43A047),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
         Navigator.pop(context, true);
@@ -337,11 +320,29 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _saveCredentials,
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF15A24), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: _isSaving
-                        ? const Center(child: CircularProgressIndicator(color: Color(0xFFF15A24)))
-                        : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    onPressed: _isSaving ? null : _saveCredentials,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF15A24),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _isSaving
+                          ? const SizedBox(
+                              key: ValueKey('saving_indicator'),
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : const Text(
+                              'Save Changes',
+                              key: ValueKey('saving_text'),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
                   ),
                 ),
               ],
