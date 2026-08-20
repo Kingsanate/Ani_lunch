@@ -104,8 +104,10 @@ class _AdminShellState extends State<AdminShell> {
   }
 
   Widget _buildDrawer(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
-    final email = user?.email ?? 'admin@anilunch.com';
+    String email = 'admin@anilunch.com';
+    try {
+      email = Supabase.instance.client.auth.currentUser?.email ?? 'admin@anilunch.com';
+    } catch (_) {}
     final displayName = email.split('@').first;
 
     return Drawer(

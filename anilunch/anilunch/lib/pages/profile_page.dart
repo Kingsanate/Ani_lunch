@@ -148,8 +148,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Column(children: [
                       _buildMenuOption(Icons.person_outline_rounded, 'Edit Information', onTap: () async {
                         final updated = await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditInformationPage()));
-                        if (updated == true && mounted) {
-                          _fetchProfile();
+                        if (mounted) {
+                          // Always refetch — small delay ensures DB write has landed
+                          await Future.delayed(const Duration(milliseconds: 300));
+                          await _fetchProfile();
                         }
                       }),
                       Divider(height: 1, color: Colors.grey[100], indent: 64),

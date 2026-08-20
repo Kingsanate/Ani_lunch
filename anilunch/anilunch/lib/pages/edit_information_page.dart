@@ -137,7 +137,6 @@ class _EditInformationPageState extends State<EditInformationPage> {
       }
       try {
         await Supabase.instance.client.from('users').upsert({
-          'id': user.id,
           'user_id': user.id,
           'name': name,
           'email': email,
@@ -146,9 +145,10 @@ class _EditInformationPageState extends State<EditInformationPage> {
           'pin_code': pincode,
           if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
           'updated_at': DateTime.now().toIso8601String(),
-        });
+        }, onConflict: 'user_id');
+        debugPrint('DB upsert OK — image: ${finalImageUrl?.substring(0, (finalImageUrl?.length ?? 0).clamp(0, 50))}');
       } catch (e) {
-        debugPrint('DB upsert notice: $e');
+        debugPrint('DB upsert FAILED: $e');
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -238,16 +238,6 @@ class _EditInformationPageState extends State<EditInformationPage> {
                     ],
                   ),
                 ),
-                if (_pickedBytes != null)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 10),
-                    child: Center(
-                      child: Text(
-                        'New photo selected — tap Save to apply',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF8CC63F), fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: 32),
                 const Text('Full Name', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 8),

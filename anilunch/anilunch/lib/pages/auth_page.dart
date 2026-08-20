@@ -341,7 +341,7 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_isLogin ? "Don't have an account? " : "Already have an account? "), GestureDetector(onTap: () => setState(() => _isLogin = !_isLogin), child: Text(_isLogin ? 'Sign Up' : 'Log In', style: const TextStyle(color: Color(0xFFF15A24), fontWeight: FontWeight.bold)))]),
+                  Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, children: [Text(_isLogin ? "Don't have an account? " : "Already have an account? "), GestureDetector(onTap: () => setState(() => _isLogin = !_isLogin), child: Text(_isLogin ? 'Sign Up' : 'Log In', style: const TextStyle(color: Color(0xFFF15A24), fontWeight: FontWeight.bold)))]),
                 ],
               ),
             ),
