@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../views/lunch_product_details_view.dart';
 import '../widgets/customization_bottom_sheet.dart';
 import '../widgets/bouncy_tap.dart';
-import '../pages/cart_page.dart';
 
 class LunchProductCard extends StatelessWidget {
   final Map<String, dynamic> product;
@@ -199,29 +198,13 @@ class LunchProductCard extends StatelessWidget {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: isAvailable ? () async {
-                      final result = await showModalBottomSheet(
+                    onTap: isAvailable ? () {
+                      showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (context) => CustomizationBottomSheet(product: product),
                       );
-                      if (result == true && context.mounted) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => Scaffold(
-                              appBar: AppBar(
-                                title: const Text('Your Cart'),
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                elevation: 0,
-                              ),
-                              body: const CartPage(),
-                            ),
-                          ),
-                        );
-                      }
                     } : null,
                     borderRadius: BorderRadius.circular(20),
                     child: Container(

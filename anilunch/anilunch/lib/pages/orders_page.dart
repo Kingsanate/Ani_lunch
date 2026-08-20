@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
-import '../models/smart_image.dart';
+import '../widgets/lunch_product_card.dart';
 import '../views/review_bottom_sheet.dart';
 
 class OrdersPage extends StatefulWidget {
@@ -87,20 +87,31 @@ class _OrdersPageState extends State<OrdersPage> {
           children: [
             (() {
               final firstItem = items.isNotEmpty ? items.first : null;
-              final imageUrl = firstItem?['image']?.toString();
-              if (imageUrl != null && imageUrl.isNotEmpty) {
-                return Container(
-                  width: 56, height: 56, margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.withValues(alpha: 0.2))),
-                  child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SmartImage(imageUrl, width: 56, height: 56, fit: BoxFit.contain)),
-                );
-              } else {
-                return Container(
-                  width: 56, height: 56, margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(color: _primaryColor.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.receipt_long_rounded, color: _primaryColor, size: 28),
-                );
-              }
+              final itemName = firstItem?['name']?.toString() ?? firstItem?['title']?.toString() ?? '';
+              final rawImage = firstItem?['image']?.toString() ?? firstItem?['image_url']?.toString();
+              final resolvedImage = LunchProductCard.resolveDishImageUrl(itemName, rawImage);
+
+              return Container(
+                width: 56,
+                height: 56,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: resolvedImage.startsWith('assets/')
+                      ? Image.asset(resolvedImage, width: 56, height: 56, fit: BoxFit.cover)
+                      : Image.network(
+                          resolvedImage,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => Image.asset('assets/images/bento.png', fit: BoxFit.cover),
+                        ),
+                ),
+              );
             })(),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -275,15 +286,35 @@ class _OrdersPageState extends State<OrdersPage> {
                       children: items.map((item) {
                         final qty = (item['quantity'] ?? item['qty'] ?? 1) as int;
                         final price = (item['price'] ?? 0) as int;
-                        final imageUrl = item['image']?.toString();
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16),
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.grey.withValues(alpha: 0.2))),
-                              child: (imageUrl != null && imageUrl.isNotEmpty)
-                                ? ClipRRect(borderRadius: BorderRadius.circular(10), child: SmartImage(imageUrl, width: 44, height: 44, fit: BoxFit.contain))
-                                : const Icon(Icons.receipt_long_rounded, color: Colors.grey, size: 20)),
+                            (() {
+                              final itemName = item['title']?.toString() ?? item['name']?.toString() ?? '';
+                              final rawImage = item['image']?.toString() ?? item['image_url']?.toString();
+                              final resolvedImage = LunchProductCard.resolveDishImageUrl(itemName, rawImage);
+                              return Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: resolvedImage.startsWith('assets/')
+                                      ? Image.asset(resolvedImage, width: 44, height: 44, fit: BoxFit.cover)
+                                      : Image.network(
+                                          resolvedImage,
+                                          width: 44,
+                                          height: 44,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) => Image.asset('assets/images/bento.png', fit: BoxFit.cover),
+                                        ),
+                                ),
+                              );
+                            })(),
                             const SizedBox(width: 14),
                             Padding(padding: const EdgeInsets.only(top: 2), child: Text('\u00d7$qty', style: TextStyle(fontWeight: FontWeight.w800, color: _primaryColor, fontSize: 14))),
                             const SizedBox(width: 14),
