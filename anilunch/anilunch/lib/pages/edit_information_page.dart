@@ -148,9 +148,10 @@ class _EditInformationPageState extends State<EditInformationPage> {
         debugPrint('Auth metadata notice: $e');
       }
 
-      // 2. Update public.users database table
+      // 2. Update public.users database table using primary key 'id'
       try {
         await Supabase.instance.client.from('users').upsert({
+          'id': user.id,
           'user_id': user.id,
           'name': name,
           'email': email,
@@ -158,11 +159,10 @@ class _EditInformationPageState extends State<EditInformationPage> {
           'address': address,
           'pin_code': pincode,
           if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
-        }, onConflict: 'user_id');
+        }, onConflict: 'id');
         debugPrint('DB upsert OK');
       } catch (e) {
         debugPrint('DB upsert notice: $e');
-        // Also try direct update if upsert had conflict constraints
         try {
           await Supabase.instance.client.from('users').update({
             'name': name,

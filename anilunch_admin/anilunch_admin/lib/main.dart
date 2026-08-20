@@ -10,31 +10,75 @@ import 'views/admin_shell.dart';
 import 'services/admin_provider.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    // 1. Safe .env loading
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (e) {
+      debugPrint('Notice: .env file not found or could not be parsed: $e');
+    }
 
-  if (supabaseUrl == null || supabaseAnonKey == null) {
-    throw Exception('Missing Supabase URL or Anon Key in .env file');
+    final supabaseUrl = dotenv.env['SUPABASE_URL'] ??
+        dotenv.env['NEXT_PUBLIC_SUPABASE_URL'] ??
+        'https://mujsywfelxqvkgvocdrn.supabase.co';
+    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ??
+        dotenv.env['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY'] ??
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11anN5d2ZlbHhxdmtndm9jZHJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjUyNTMsImV4cCI6MjA5MTg0MTI1M30.cvA3WwhiPD8HX2Dnlt9YbKCyp--xUkkN94H3BYETPj4';
+
+    // 2. Initialize Supabase
+    try {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
+    } catch (e) {
+      debugPrint('Supabase initialize notice: $e');
+    }
+
+    // 3. Initialize Go API Provider & Realtime
+    try {
+      await AniApi.ensureInitialized();
+      await AniApi.exchangeForSession();
+    } catch (e) {
+      debugPrint('AniApi initialize notice: $e');
+    }
+
+    // 4. Initialize Local Drift Cache
+    try {
+      final db = AppDatabase();
+      AdminCache.instance.init(db);
+    } catch (e) {
+      debugPrint('AdminCache database init notice: $e');
+    }
+
+    runApp(const AniLunchAdminApp());
+  } catch (e, stackTrace) {
+    debugPrint('Fatal Startup Error: $e\n$stackTrace');
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.orange, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('AniLunch Admin', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('$e', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
-
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-  );
-
-  await AniApi.ensureInitialized();
-  await AniApi.exchangeForSession();
-
-  final db = AppDatabase();
-  AdminCache.instance.init(db);
-  
-  runApp(const AniLunchAdminApp());
 }
 
 // Global key so any state can show a SnackBar without needing a context
