@@ -1,5 +1,6 @@
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';
 
 class MenuProvider extends ChangeNotifier {
