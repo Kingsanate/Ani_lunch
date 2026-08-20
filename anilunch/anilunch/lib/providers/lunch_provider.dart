@@ -39,14 +39,22 @@ class LunchProvider extends ChangeNotifier {
   }
 
   Future<void> fetchProducts() async {
-    _isLoading = true;
+    // Only set loading if there are no cached products to display
+    if (_products.isEmpty) {
+      _isLoading = true;
+      notifyListeners();
+    }
     _error = null;
-    notifyListeners();
 
     try {
-      _products = await _lunchService.getLunchProducts();
+      final fresh = await _lunchService.getLunchProducts();
+      if (fresh.isNotEmpty || _products.isEmpty) {
+        _products = fresh;
+      }
     } catch (e) {
-      _error = e.toString();
+      if (_products.isEmpty) {
+        _error = e.toString();
+      }
     } finally {
       _isLoading = false;
       notifyListeners();

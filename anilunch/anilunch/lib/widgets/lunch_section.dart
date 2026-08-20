@@ -10,25 +10,52 @@ class LunchSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<LunchProvider>(
       builder: (context, provider, child) {
-        if (provider.isLoading) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(child: CircularProgressIndicator(color: Color(0xFFF15A24))),
+        if (provider.isLoading && provider.products.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.15,
+              ),
+              itemCount: 4,
+              itemBuilder: (context, index) => Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.restaurant, color: Colors.grey[300], size: 32),
+                    const SizedBox(height: 8),
+                    Container(width: 80, height: 10, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
+                    const SizedBox(height: 6),
+                    Container(width: 50, height: 8, decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(4))),
+                  ],
+                ),
+              ),
+            ),
           );
         }
 
-        if (provider.error != null) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            child: Center(child: Text('Error loading lunch products', style: const TextStyle(color: Colors.red))),
+        if (provider.error != null && provider.products.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('Unable to load meals. Pull down to refresh.', style: TextStyle(color: Colors.grey, fontSize: 12))),
           );
         }
 
         final products = provider.products;
         if (products.isEmpty) {
           return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(child: Text('No lunch products available right now.', style: TextStyle(color: Colors.grey))),
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('Fresh meals being prepared. Check back soon!', style: TextStyle(color: Colors.grey, fontSize: 13))),
           );
         }
 

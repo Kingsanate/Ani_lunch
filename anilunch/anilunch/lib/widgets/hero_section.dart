@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
-import 'dart:ui';
 
 class HeroSection extends StatefulWidget {
   const HeroSection({super.key});
@@ -181,14 +180,42 @@ class _HeroSectionState extends State<HeroSection> {
                     letterSpacing: -0.3,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _subtitleText,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _subtitleText,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (_buttonText.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _buttonText,
+                          style: const TextStyle(
+                            color: Color(0xFFF15A24),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),

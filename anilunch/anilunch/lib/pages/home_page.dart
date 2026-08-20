@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../providers/menu_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
-import '../providers/lunch_provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/hero_section.dart';
 import '../widgets/daily_deals.dart';
@@ -46,7 +45,6 @@ class _HomePageState extends State<HomePage> {
     _selectedIndex = widget.initialIndex;
     final auth = context.read<AuthProvider>();
     _fetchProfile(auth.user);
-    final menu = context.read<MenuProvider>();
     final order = context.read<OrderProvider>();
     if (auth.user != null) {
       order.fetchOrders(auth.user!.id, isLunchMode: true);

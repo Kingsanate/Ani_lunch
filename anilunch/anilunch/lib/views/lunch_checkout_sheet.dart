@@ -376,7 +376,7 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                     const Text('Checkout',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF2C1A0E)),
                     ),
-                    Text('${_items.length} item(s)',
+                    Text('$totalItems item${totalItems != 1 ? 's' : ''}',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
@@ -429,13 +429,7 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                         Row(
                           children: [
                             GestureDetector(
-                              onTap: () {
-                                if (quantity > 1) {
-                                  setState(() => _items[index]['quantity']--);
-                                } else {
-                                  setState(() => _items.removeAt(index));
-                                }
-                              },
+                              onTap: () => _decreaseQuantity(index),
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
@@ -454,9 +448,7 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                               child: Text('$quantity', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                             ),
                             GestureDetector(
-                              onTap: () {
-                                setState(() => _items[index]['quantity']++);
-                              },
+                              onTap: () => _increaseQuantity(index),
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(

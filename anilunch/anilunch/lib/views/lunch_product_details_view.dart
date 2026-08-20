@@ -25,8 +25,6 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
   List<Map<String, dynamic>> _reviews = [];
   bool _isLoadingReviews = true;
   int _currentImageIndex = 0;
-  int _selectedPortionIndex = 0;
-  int _selectedSpiceIndex = 1;
 
   @override
   void initState() {
@@ -65,29 +63,6 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
       sum += double.tryParse(review['rating']?.toString() ?? '5.0') ?? 5.0;
     }
     return sum / _reviews.length;
-  }
-
-  void _loadDummyReviews() {
-    _reviews = [
-      {
-        'customer_name': 'Rohan Sharma',
-        'rating': 4.5,
-        'comment': 'Absolutely delicious! The meat was tender and the packaging was spill-proof. Highly recommended.',
-        'created_at': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-      },
-      {
-        'customer_name': 'Priya Singh',
-        'rating': 5.0,
-        'comment': 'Best quality food I have ordered in a while. The taste is very authentic and feels home-cooked.',
-        'created_at': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-      },
-      {
-        'customer_name': 'Vikram Patel',
-        'rating': 4.0,
-        'comment': 'Great portion size and fast delivery. The spices were perfectly balanced. Will order again.',
-        'created_at': DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
-      },
-    ];
   }
 
   Widget _buildReviewCard(Map<String, dynamic> review) {
@@ -471,7 +446,7 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
                   height: 48,
                   child: OutlinedButton(
                     onPressed: () async {
-                      final result = await showModalBottomSheet(
+                      await showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
