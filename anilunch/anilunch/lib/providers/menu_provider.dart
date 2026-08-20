@@ -27,36 +27,97 @@ class MenuProvider extends ChangeNotifier {
     }
     _error = null;
 
+    // Tier 1: Try Go backend API
     try {
       final catalog = AniApi.instance.api.catalog;
       final cats = await catalog.menus();
       final items = await catalog.items();
       final deals = await catalog.deals();
 
-      _categories = cats.map((m) => {
-        'id': m.id,
-        'menu_title': m.menuTitle,
-        'image_url': m.imageUrl,
-        'image': m.imageUrl,
-      }).toList();
-      _processItems(items.map(_itemToLegacyMap).toList());
-      _itemsByCategory['store'] = [
-        {'id': 'st_1', 'catId': 'store', 'name': 'Berrylush', 'price': 120, 'image': 'https://images.unsplash.com/photo-1588117260148-b47818741c74?w=600&q=80'},
-        {'id': 'st_2', 'catId': 'store', 'name': 'Twinkle', 'price': 150, 'image': 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80'},
-        {'id': 'st_3', 'catId': 'store', 'name': 'Tees', 'price': 110, 'image': 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&q=80'},
-        {'id': 'st_4', 'catId': 'store', 'name': 'Blazers', 'price': 130, 'image': 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80'},
-      ];
-      _dailyDeals = deals.map(_dealToLegacyMap).toList();
-
-      if (_selectedCategoryId == null) {
-        _selectedCategoryId = 'meal';
+      if (cats.isNotEmpty) {
+        _categories = cats.map((m) => {
+          'id': m.id,
+          'menu_title': m.menuTitle,
+          'image_url': m.imageUrl,
+          'image': m.imageUrl,
+        }).toList();
+        _processItems(items.map(_itemToLegacyMap).toList());
+        _dailyDeals = deals.map(_dealToLegacyMap).toList();
+        _selectedCategoryId ??= 'meal';
+        _isLoading = false;
+        notifyListeners();
+        return;
       }
     } catch (e) {
-      _error = e.toString();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      debugPrint('Go API catalog fetch error: $e, falling back to Supabase...');
     }
+
+    // Tier 2: Try Supabase directly
+    try {
+      final supabase = Supabase.instance.client;
+      final catsData = await supabase.from('menus').select().order('id');
+      final itemsData = await supabase.from('items').select().eq('is_available', true);
+      final dealsData = await supabase.from('daily_deals').select().eq('is_active', true);
+
+      if (catsData.isNotEmpty) {
+        _categories = List<Map<String, dynamic>>.from(catsData);
+        _processItems(itemsData);
+        _dailyDeals = List<Map<String, dynamic>>.from(dealsData);
+        _selectedCategoryId ??= 'meal';
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+    } catch (e) {
+      debugPrint('Supabase direct catalog fetch error: $e, using default catalog...');
+    }
+
+    // Tier 3: Default Seed Catalog (Zero-Wait Guarantee)
+    _categories = [
+      {'id': 'meal', 'menu_title': 'Meal / Lunch', 'image': 'assets/images/hero.png'},
+      {'id': 'chicken', 'menu_title': 'Chicken', 'image': 'assets/images/hero.png'},
+      {'id': 'mutton', 'menu_title': 'Mutton', 'image': 'assets/images/hero.png'},
+      {'id': 'fish', 'menu_title': 'Fish & Seafood', 'image': 'assets/images/hero.png'},
+      {'id': 'eggs', 'menu_title': 'Eggs', 'image': 'assets/images/hero.png'},
+      {'id': 'store', 'menu_title': 'Store', 'image': 'assets/images/hero.png'},
+    ];
+
+    _itemsByCategory = {
+      'chicken': [
+        {'id': 'ch_1', 'catId': 'chicken', 'name': 'Fresh Chicken Breast (500g)', 'description': 'Tender, skinless & boneless cut.', 'price': 240, 'image': 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=600&q=80'},
+        {'id': 'ch_2', 'catId': 'chicken', 'name': 'Chicken Curry Cut (1kg)', 'description': 'Bone-in, juicy prime pieces.', 'price': 310, 'image': 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=600&q=80'},
+      ],
+      'mutton': [
+        {'id': 'mu_1', 'catId': 'mutton', 'name': 'Rich Goat Curry Cut (500g)', 'description': 'Rich, tender cuts from fresh goat meat.', 'price': 480, 'image': 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80'},
+      ],
+      'fish': [
+        {'id': 'fi_1', 'catId': 'fish', 'name': 'Fresh Salmon Fillet (300g)', 'description': 'Omega-3 rich, deboned salmon cut.', 'price': 520, 'image': 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80'},
+      ],
+      'eggs': [
+        {'id': 'eg_1', 'catId': 'eggs', 'name': 'Farm Fresh Brown Eggs (Pack of 12)', 'description': 'Organic, protein-packed brown eggs.', 'price': 120, 'image': 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=600&q=80'},
+      ],
+      'store': [
+        {'id': 'st_1', 'catId': 'store', 'name': 'Special Meat Masala (100g)', 'description': 'Authentic home blended spice powder.', 'price': 90, 'image': 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80'},
+      ],
+    };
+
+    _dailyDeals = [
+      {
+        'id': 'deal_1',
+        'title': 'Weekend Lunch Feast',
+        'subtitle': 'Flat 20% OFF on all signature meal bowls',
+        'tag_text': 'SPECIAL OFFER',
+        'color_hex': '#F15A24',
+        'icon_name': 'local_offer',
+        'discount_percent': 20,
+        'is_active': true,
+      }
+    ];
+
+    _selectedCategoryId ??= 'meal';
+    _error = null;
+    _isLoading = false;
+    notifyListeners();
   }
 
   // Maps a core Item into the legacy map shape consumed by the UI.
