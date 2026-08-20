@@ -111,17 +111,17 @@ class _EditInformationPageState extends State<EditInformationPage> {
       String? finalImageUrl = _existingImageUrl;
       if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
         String? storageUrl;
-        final filename = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final filename = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
         try {
-          await Supabase.instance.client.storage.from('avatars').uploadBinary(filename, _pickedBytes!, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
-          storageUrl = Supabase.instance.client.storage.from('avatars').getPublicUrl(filename);
-        } catch (_) {
-          try {
-            await Supabase.instance.client.storage.from('users').uploadBinary(filename, _pickedBytes!, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
-            storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(filename);
-          } catch (e) {
-            debugPrint('Storage upload notice: $e');
-          }
+          await Supabase.instance.client.storage.from('users').uploadBinary(
+            filename,
+            _pickedBytes!,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          );
+          storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(filename);
+          debugPrint('Storage upload SUCCESS: $storageUrl');
+        } catch (e) {
+          debugPrint('Storage upload error: $e');
         }
         finalImageUrl = (storageUrl != null && storageUrl.isNotEmpty) ? storageUrl : 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
       }
@@ -141,44 +141,40 @@ class _EditInformationPageState extends State<EditInformationPage> {
           'phone': phone,
           'address': address,
           'pin_code': pincode,
-          if (finalImageUrl != null) 'avatar_url': finalImageUrl,
           if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
+          if (finalImageUrl != null) 'avatar_url': finalImageUrl,
         }));
       } catch (e) {
         debugPrint('Auth metadata notice: $e');
       }
 
-      // 2. Update public.users database table (try canonical columns first, then extended)
-      bool dbSaved = false;
+      // 2. Update public.users database table
       try {
         await Supabase.instance.client.from('users').upsert({
           'user_id': user.id,
           'name': name,
           'email': email,
-          'phone': phone,
+          'phone_number': phone,
           'address': address,
-          if (finalImageUrl != null) 'avatar_url': finalImageUrl,
-          'updated_at': DateTime.now().toIso8601String(),
+          'pin_code': pincode,
+          if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
         }, onConflict: 'user_id');
-        dbSaved = true;
-      } catch (e1) {
-        debugPrint('DB upsert canonical attempt notice: $e1');
+        debugPrint('DB upsert OK');
+      } catch (e) {
+        debugPrint('DB upsert notice: $e');
+        // Also try direct update if upsert had conflict constraints
         try {
-          await Supabase.instance.client.from('users').upsert({
-            'user_id': user.id,
+          await Supabase.instance.client.from('users').update({
             'name': name,
             'email': email,
             'phone_number': phone,
-            'phone': phone,
             'address': address,
             'pin_code': pincode,
             if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
-            if (finalImageUrl != null) 'avatar_url': finalImageUrl,
-            'updated_at': DateTime.now().toIso8601String(),
-          }, onConflict: 'user_id');
-          dbSaved = true;
+          }).eq('user_id', user.id);
+          debugPrint('DB update fallback OK');
         } catch (e2) {
-          debugPrint('DB upsert extended attempt notice: $e2');
+          debugPrint('DB update fallback notice: $e2');
         }
       }
 
