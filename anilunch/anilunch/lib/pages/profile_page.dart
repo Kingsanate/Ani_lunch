@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../providers/auth_provider.dart';
+import '../providers/cart_provider.dart';
+import '../providers/lunch_provider.dart';
 import '../models/smart_image.dart';
+import 'auth_page.dart';
 import 'edit_information_page.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -92,10 +97,57 @@ class ProfilePage extends StatelessWidget {
                     ]),
                   ),
                   const SizedBox(height: 32),
-                  Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x04000000), blurRadius: 8, offset: Offset(0, 2))]),
-                    child: _buildMenuOption(Icons.logout_rounded, 'Log Out', isDestructive: true, onTap: () async {
-                      await Supabase.instance.client.auth.signOut();
-                    }),
+                  Container(
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x04000000), blurRadius: 8, offset: Offset(0, 2))]),
+                    child: _buildMenuOption(
+                      Icons.logout_rounded,
+                      'Log Out',
+                      isDestructive: true,
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Log Out'),
+                            content: const Text('Are you sure you want to log out from AniLunch?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Log Out'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirm == true && context.mounted) {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFFF15A24))),
+                          );
+
+                          try {
+                            context.read<LunchProvider>().clearCart();
+                            context.read<CartProvider>().clearCart();
+                            await context.read<AuthProvider>().signOut();
+                          } catch (e) {
+                            debugPrint('SignOut exception: $e');
+                          }
+
+                          if (context.mounted) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AuthPage()),
+                              (route) => false,
+                            );
+                          }
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 40),
                 ]),

@@ -85,7 +85,18 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    await Supabase.instance.client.auth.signOut();
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      debugPrint('Supabase signOut error: $e');
+    } finally {
+      _user = null;
+      _authState = null;
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   void clearError() {

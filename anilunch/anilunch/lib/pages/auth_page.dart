@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/smart_image.dart';
+import 'home_page.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -25,7 +26,17 @@ class _AuthPageState extends State<AuthPage> {
     setState(() => _isLoading = true);
     try {
       if (_isLogin) {
-        await Supabase.instance.client.auth.signInWithPassword(email: _emailController.text.trim(), password: _passwordController.text);
+        final res = await Supabase.instance.client.auth.signInWithPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        if (res.user != null && mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePage()),
+            (route) => false,
+          );
+        }
       } else {
         final res = await Supabase.instance.client.auth.signUp(
           email: _emailController.text.trim(),
