@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/providers/api_provider.dart';
+import 'razorpay_bridge/razorpay_bridge.dart';
 
 class PaymentService {
   static const String razorpayKeyId = 'rzp_test_TRzRqEYoi0xXHe';
@@ -21,37 +20,14 @@ class PaymentService {
       return true;
     }
 
-    final completer = Completer<bool>();
-
-    try {
-      if (globalContext.has('openRazorpayCheckout')) {
-        final jsCallback = ((JSBoolean success) {
-          if (!completer.isCompleted) {
-            completer.complete(success.toDart);
-          }
-        }).toJS;
-
-        globalContext.callMethodVarArgs(
-          'openRazorpayCheckout'.toJS,
-          [
-            razorpayKeyId.toJS,
-            (amountRupees * 100).toJS,
-            orderId.toJS,
-            customerName.toJS,
-            customerEmail.toJS,
-            customerPhone.toJS,
-            jsCallback,
-          ],
-        );
-      } else {
-        completer.complete(true);
-      }
-    } catch (e) {
-      debugPrint('Razorpay web checkout error: $e');
-      completer.complete(true);
-    }
-
-    return completer.future;
+    return launchWebRazorpayCheckout(
+      keyId: razorpayKeyId,
+      amountPaise: amountRupees * 100,
+      orderId: orderId,
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerPhone: customerPhone,
+    );
   }
 
   static Future<String> processOnlinePayment({

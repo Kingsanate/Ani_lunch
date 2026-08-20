@@ -1,12 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EditInformationPage extends StatefulWidget {
   const EditInformationPage({super.key});
-
   @override
   State<EditInformationPage> createState() => _EditInformationPageState();
 }
@@ -18,10 +17,9 @@ class _EditInformationPageState extends State<EditInformationPage> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _pincodeController = TextEditingController();
-  Uint8List? _pickedBytes;
-  XFile? _imageFile;
-  String? _existingImageUrl;
 
+  Uint8List? _pickedBytes;
+  String? _existingImageUrl;
   bool _isSaving = false;
 
   @override
@@ -30,182 +28,160 @@ class _EditInformationPageState extends State<EditInformationPage> {
     _fetchProfile();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _pincodeController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchProfile() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
-
     if (mounted) {
       setState(() {
-        if (_nameController.text.isEmpty) _nameController.text = user.userMetadata?['full_name']?.toString() ?? '';
-        if (_emailController.text.isEmpty) _emailController.text = user.email ?? '';
-        if (_phoneController.text.isEmpty) _phoneController.text = user.userMetadata?['phone_number']?.toString() ?? '';
-        if (_addressController.text.isEmpty) _addressController.text = user.userMetadata?['address']?.toString() ?? '';
-        if (_pincodeController.text.isEmpty) _pincodeController.text = user.userMetadata?['pin_code']?.toString() ?? '';
+        _nameController.text = user.userMetadata?['full_name']?.toString() ?? '';
+        _emailController.text = user.email ?? '';
+        _phoneController.text = user.userMetadata?['phone_number']?.toString() ?? '';
+        _addressController.text = user.userMetadata?['address']?.toString() ?? '';
+        _pincodeController.text = user.userMetadata?['pin_code']?.toString() ?? '';
         _existingImageUrl = user.userMetadata?['profile_image_url']?.toString();
       });
     }
-
     try {
       final data = await Supabase.instance.client.from('users').select().eq('user_id', user.id).maybeSingle();
       if (data != null && mounted) {
         setState(() {
-          final dbName = data['name'];
-          if (dbName != null && dbName.toString().isNotEmpty) _nameController.text = dbName;
-
-          final dbEmail = data['email'];
-          if (dbEmail != null && dbEmail.toString().isNotEmpty) _emailController.text = dbEmail;
-
-          final dbPhone = data['phone_number'];
-          if (dbPhone != null && dbPhone.toString().isNotEmpty) _phoneController.text = dbPhone;
-
-          final dbAddress = data['address'];
-          if (dbAddress != null && dbAddress.toString().isNotEmpty) _addressController.text = dbAddress;
-
-          final dbPincode = data['pin_code'];
-          if (dbPincode != null && dbPincode.toString().isNotEmpty) _pincodeController.text = dbPincode.toString();
-
-          _existingImageUrl = data['profile_image_url'] ?? _existingImageUrl;
+          if ((data['name'] ?? '').toString().isNotEmpty) _nameController.text = data['name'];
+          if ((data['email'] ?? '').toString().isNotEmpty) _emailController.text = data['email'];
+          if ((data['phone_number'] ?? '').toString().isNotEmpty) _phoneController.text = data['phone_number'];
+          if ((data['address'] ?? '').toString().isNotEmpty) _addressController.text = data['address'];
+          if ((data['pin_code'] ?? '').toString().isNotEmpty) _pincodeController.text = data['pin_code'].toString();
+          if ((data['profile_image_url'] ?? '').toString().isNotEmpty) _existingImageUrl = data['profile_image_url'];
         });
       }
     } catch (e) {
-      debugPrint('Fetch profile Database notice: $e');
+      debugPrint('Profile fetch notice: $e');
     }
   }
 
   Future<void> _pickImage() async {
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 50,
-        maxWidth: 400,
-        maxHeight: 400,
-      );
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 300, maxHeight: 300);
       if (pickedFile != null) {
         final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          _imageFile = pickedFile;
-          _pickedBytes = bytes;
-        });
+        if (mounted) setState(() { _pickedBytes = bytes; });
       }
     } catch (e) {
-      debugPrint('Pick image notice: $e');
+      debugPrint('Pick image error: $e');
     }
   }
 
+  Widget _defaultAvatar() => Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 120, height: 120);
+
   Widget _buildAvatarPreview() {
-    if (_pickedBytes != null) {
-      return Image.memory(_pickedBytes!, fit: BoxFit.cover, width: 120, height: 120);
+    if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
+      return Image.memory(_pickedBytes!, fit: BoxFit.cover, width: 120, height: 120, errorBuilder: (_, __, ___) => _defaultAvatar());
     }
     if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
       final url = _existingImageUrl!;
       if (url.startsWith('data:image')) {
         try {
-          final base64String = url.split(',').last;
-          return Image.memory(base64Decode(base64String), fit: BoxFit.cover, width: 120, height: 120);
+          return Image.memory(base64Decode(url.split(',').last), fit: BoxFit.cover, width: 120, height: 120, errorBuilder: (_, __, ___) => _defaultAvatar());
         } catch (_) {}
-      } else if (url.startsWith('http') || url.startsWith('blob:')) {
-        return Image.network(
-          url,
-          fit: BoxFit.cover,
-          width: 120,
-          height: 120,
-          errorBuilder: (_, __, ___) => Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 120, height: 120),
-        );
-      } else if (url.startsWith('assets/')) {
-        return Image.asset(url, fit: BoxFit.cover, width: 120, height: 120);
+      } else if (url.startsWith('http')) {
+        return Image.network(url, fit: BoxFit.cover, width: 120, height: 120, errorBuilder: (_, __, ___) => _defaultAvatar());
       }
     }
-    return Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 120, height: 120);
+    return _defaultAvatar();
   }
 
   Future<void> _saveCredentials() async {
     if (!_formKey.currentState!.validate()) return;
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
-
     setState(() => _isSaving = true);
-
     try {
-      String? imageUrl;
-      if (_pickedBytes != null || _imageFile != null) {
-        final bytes = _pickedBytes ?? await _imageFile!.readAsBytes();
-        imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-
-        // Background storage upload without blocking save completion
-        final path = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        Supabase.instance.client.storage.from('users').uploadBinary(
-          path,
-          bytes,
-          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-        ).then((_) {
-          final pubUrl = Supabase.instance.client.storage.from('users').getPublicUrl(path);
-          Supabase.instance.client.from('users').update({'profile_image_url': pubUrl}).eq('user_id', user.id);
-        }).catchError((_) {});
+      String? finalImageUrl = _existingImageUrl;
+      if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
+        String? storageUrl;
+        try {
+          final path = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          await Supabase.instance.client.storage.from('users').uploadBinary(path, _pickedBytes!, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
+          storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(path);
+        } catch (e) {
+          debugPrint('Storage upload failed: $e');
+        }
+        finalImageUrl = (storageUrl != null && storageUrl.isNotEmpty) ? storageUrl : 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
       }
-
-      final resolvedImageUrl = imageUrl ?? _existingImageUrl;
-      final updateData = {
-        'id': user.id,
-        'user_id': user.id,
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'phone_number': _phoneController.text.trim(),
-        'address': _addressController.text.trim(),
-        'pin_code': _pincodeController.text.trim(),
-        if (resolvedImageUrl != null) 'profile_image_url': resolvedImageUrl,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // Perform auth metadata and database upsert in parallel for instant sub-second response
-      await Future.wait([
-        Supabase.instance.client.auth.updateUser(
-          UserAttributes(
-            data: {
-              'full_name': _nameController.text.trim(),
-              'phone_number': _phoneController.text.trim(),
-              'address': _addressController.text.trim(),
-              'pin_code': _pincodeController.text.trim(),
-              if (resolvedImageUrl != null) 'profile_image_url': resolvedImageUrl,
-            },
-          ),
-        ).then((_) => null).catchError((_) => null),
-        Supabase.instance.client.from('users').upsert(updateData).then((_) => null).catchError((_) => null),
-      ]);
-
+      final name = _nameController.text.trim();
+      final phone = _phoneController.text.trim();
+      final address = _addressController.text.trim();
+      final pincode = _pincodeController.text.trim();
+      final email = _emailController.text.trim();
+      final authImageUrl = (finalImageUrl != null && finalImageUrl.startsWith('http')) ? finalImageUrl : null;
+      try {
+        await Supabase.instance.client.auth.updateUser(UserAttributes(data: {
+          'full_name': name,
+          'phone_number': phone,
+          'address': address,
+          'pin_code': pincode,
+          if (authImageUrl != null) 'profile_image_url': authImageUrl,
+        }));
+      } catch (e) {
+        debugPrint('Auth metadata notice: $e');
+      }
+      try {
+        await Supabase.instance.client.from('users').upsert({
+          'id': user.id,
+          'user_id': user.id,
+          'name': name,
+          'email': email,
+          'phone_number': phone,
+          'address': address,
+          'pin_code': pincode,
+          if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        debugPrint('DB upsert notice: $e');
+      }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 10),
-                Text('Profile updated successfully!', style: TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            backgroundColor: const Color(0xFF43A047),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Row(children: [Icon(Icons.check_circle_rounded, color: Colors.white, size: 20), SizedBox(width: 10), Text('Profile updated successfully!', style: TextStyle(fontWeight: FontWeight.bold))]),
+          backgroundColor: const Color(0xFF43A047),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ));
         Navigator.pop(context, true);
       }
     } catch (e) {
+      debugPrint('Save error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Unable to update profile. Please try again.'),
-            backgroundColor: const Color(0xFFD32F2F),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Unable to update profile. Please try again.'),
+          backgroundColor: const Color(0xFFD32F2F),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
+
+  InputDecoration _fieldDecoration(String hint) => InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +203,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
               children: [
                 Center(
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       GestureDetector(
                         onTap: _pickImage,
@@ -236,51 +213,47 @@ class _EditInformationPageState extends State<EditInformationPage> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.grey.shade100,
-                            border: Border.all(color: const Color(0xFFF15A24).withValues(alpha: 0.3), width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                            border: Border.all(color: const Color(0xFFF15A24).withValues(alpha: 0.4), width: 3),
+                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))],
                           ),
-                          child: ClipOval(
-                            child: _buildAvatarPreview(),
-                          ),
+                          child: ClipOval(child: _buildAvatarPreview()),
                         ),
                       ),
                       Positioned(
-                        bottom: 0,
-                        right: 0,
+                        bottom: 2,
+                        right: 2,
                         child: GestureDetector(
                           onTap: _pickImage,
                           child: Container(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(8),
                             decoration: const BoxDecoration(
                               color: Color(0xFFF15A24),
                               shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0x3DF15A24),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
+                              boxShadow: [BoxShadow(color: Color(0x40F15A24), blurRadius: 6, offset: Offset(0, 2))],
                             ),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                            child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
+                if (_pickedBytes != null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Center(
+                      child: Text(
+                        'New photo selected — tap Save to apply',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF8CC63F), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 32),
                 const Text('Full Name', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _nameController,
-                  decoration: InputDecoration(hintText: "Enter your full name", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                  decoration: _fieldDecoration('Enter your full name'),
                   textCapitalization: TextCapitalization.words,
                   validator: (v) => v == null || v.isEmpty ? 'Name is required' : null,
                 ),
@@ -289,7 +262,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _emailController,
-                  decoration: InputDecoration(hintText: "Enter your email address", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                  decoration: _fieldDecoration('Enter your email address'),
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email is required';
@@ -302,7 +275,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _phoneController,
-                  decoration: InputDecoration(hintText: "Enter your phone number", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                  decoration: _fieldDecoration('Enter your phone number'),
                   keyboardType: TextInputType.phone,
                   validator: (v) => v == null || v.isEmpty ? 'Phone number is required' : null,
                 ),
@@ -312,7 +285,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 TextFormField(
                   controller: _addressController,
                   maxLines: 3,
-                  decoration: InputDecoration(hintText: "Enter your full address", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                  decoration: _fieldDecoration('Enter your full address'),
                   validator: (v) => v == null || v.isEmpty ? 'Address is required' : null,
                 ),
                 const SizedBox(height: 24),
@@ -320,7 +293,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _pincodeController,
-                  decoration: InputDecoration(hintText: "Enter your pin code", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                  decoration: _fieldDecoration('Enter your pin code'),
                   keyboardType: TextInputType.number,
                   validator: (v) => v == null || v.isEmpty ? 'Pin code is required' : null,
                 ),
@@ -332,6 +305,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFF15A24),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFF15A24).withValues(alpha: 0.6),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
@@ -339,20 +313,12 @@ class _EditInformationPageState extends State<EditInformationPage> {
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       child: _isSaving
-                          ? const SizedBox(
-                              key: ValueKey('saving_indicator'),
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                            )
-                          : const Text(
-                              'Save Changes',
-                              key: ValueKey('saving_text'),
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
+                          ? const SizedBox(key: ValueKey('loading'), width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                          : const Text('Save Changes', key: ValueKey('label'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
               ],
             ),
           ),

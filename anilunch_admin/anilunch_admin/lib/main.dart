@@ -42,11 +42,17 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
 class AniLunchAdminApp extends StatelessWidget {
-  const AniLunchAdminApp({super.key});
+  final Widget? home;
+  const AniLunchAdminApp({super.key, this.home});
 
   @override
   Widget build(BuildContext context) {
-    final currentSession = Supabase.instance.client.auth.currentSession;
+    bool hasSession = false;
+    try {
+      hasSession = Supabase.instance.client.auth.currentSession != null;
+    } catch (_) {
+      hasSession = false;
+    }
 
     return ChangeNotifierProvider(
       create: (_) => AdminProvider(),
@@ -73,7 +79,7 @@ class AniLunchAdminApp extends StatelessWidget {
           useMaterial3: true,
         ),
         // If user is already logged in, show AdminShell, otherwise show LoginView
-        home: currentSession != null ? const AdminShell() : const LoginView(),
+        home: home ?? (hasSession ? const AdminShell() : const LoginView()),
       ),
     );
   }

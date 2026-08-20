@@ -26,7 +26,7 @@ void main() {
       when(mockClient.auth).thenReturn(mockGoTrue);
       when((mockClient as dynamic).from(any)).thenReturn(mockQueryBuilder);
 
-      authService = AuthService();
+      authService = AuthService(client: mockClient);
     });
 
     group('signIn', () {

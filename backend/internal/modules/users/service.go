@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"animeat/backend/internal/database"
 	"animeat/backend/internal/platform"
@@ -23,15 +22,7 @@ func NewService(db *database.Postgres) *Service {
 // The users table keys on `user_id` (TEXT from Supabase Auth sub claim) or `id` (UUID).
 func (s *Service) GetProfile(ctx context.Context, userID string) (*User, error) {
 	if s.db == nil || s.db.Pool == nil {
-		return &User{
-			ID:        userID,
-			UserID:    &userID,
-			Name:      "Valued Customer",
-			Email:     "customer@anilunch.app",
-			Address:   "IIM Umsawli, Shillong Mawlai",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}, nil
+		return nil, platform.ErrInternal
 	}
 
 	var u User
@@ -47,16 +38,7 @@ func (s *Service) GetProfile(ctx context.Context, userID string) (*User, error) 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, platform.ErrNotFound
 		}
-		// Return fallback profile on DB connection error
-		return &User{
-			ID:        userID,
-			UserID:    &userID,
-			Name:      "Valued Customer",
-			Email:     "customer@anilunch.app",
-			Address:   "IIM Umsawli, Shillong Mawlai",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}, nil
+		return nil, fmt.Errorf("failed to fetch user profile: %w", err)
 	}
 
 	return &u, nil

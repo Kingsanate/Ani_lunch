@@ -227,7 +227,7 @@ func (c *EventConsumer) StartRiderBroadcastWorker(ctx context.Context) error {
 	consumer, err := c.js.CreateOrUpdateConsumer(ctx, StreamOrders, jetstream.ConsumerConfig{
 		Durable:       "rider-broadcast-group",
 		Description:   "Delivers ready_for_pickup events to notify nearby delivery partners",
-		FilterSubject: "orders.ready",
+		FilterSubject: "orders.ready_for_pickup",
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		MaxDeliver:    5,
 		AckWait:       10 * time.Second,
