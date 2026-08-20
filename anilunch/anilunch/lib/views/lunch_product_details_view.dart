@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/lunch_provider.dart';
 import '../widgets/customization_bottom_sheet.dart';
+import '../widgets/lunch_product_card.dart';
 import 'lunch_checkout_sheet.dart';
-import '../pages/cart_page.dart';
 
 class LunchProductDetailsView extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -148,21 +147,20 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
     final discountPrice = product['discount_price'];
     final imageUrl = product['image_url']?.toString();
     final isAvailable = product['is_available'] == true;
-
     final displayPrice = discountPrice ?? price;
     
     // Create an image list with the primary image and any additional images
-    final List<String> carouselImages = [];
-    if (imageUrl != null && imageUrl.isNotEmpty) carouselImages.add(imageUrl);
+    final resolvedPrimaryImage = LunchProductCard.resolveDishImageUrl(name, imageUrl);
+    final List<String> carouselImages = [resolvedPrimaryImage];
     
     final imageUrl2 = product['image_url_2']?.toString();
-    if (imageUrl2 != null && imageUrl2.isNotEmpty) carouselImages.add(imageUrl2);
+    if (imageUrl2 != null && imageUrl2.isNotEmpty) {
+      carouselImages.add(LunchProductCard.resolveDishImageUrl(name, imageUrl2));
+    }
     
     final imageUrl3 = product['image_url_3']?.toString();
-    if (imageUrl3 != null && imageUrl3.isNotEmpty) carouselImages.add(imageUrl3);
-
-    if (carouselImages.isEmpty) {
-      carouselImages.add('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1000&auto=format&fit=crop');
+    if (imageUrl3 != null && imageUrl3.isNotEmpty) {
+      carouselImages.add(LunchProductCard.resolveDishImageUrl(name, imageUrl3));
     }
 
     return Scaffold(
@@ -192,28 +190,44 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
                       itemCount: carouselImages.length,
                       onPageChanged: (index) => setState(() => _currentImageIndex = index),
                       itemBuilder: (context, index) {
+                        final currentImg = carouselImages[index];
+                        Widget imageWidget;
+                        if (currentImg.startsWith('assets/')) {
+                          imageWidget = Image.asset(currentImg, width: double.infinity, fit: BoxFit.cover);
+                        } else {
+                          imageWidget = Image.network(
+                            currentImg,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(color: const Color(0xFFF7F3F0));
+                            },
+                            errorBuilder: (context, error, stackTrace) => Image.asset(
+                              LunchProductCard.resolveDishImageUrl(name, null),
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          );
+                        }
+
                         return GestureDetector(
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => _FullScreenImageViewer(
-                                    imageUrls: carouselImages,
-                                    initialIndex: index,
-                                    productId: product['id'].toString(),
-                                  ),
+                                builder: (_) => _FullScreenImageViewer(
+                                  imageUrls: carouselImages,
+                                  initialIndex: index,
+                                  productId: product['id'].toString(),
+                                  dishName: name,
+                                ),
                               ),
                             );
                           },
                           child: Hero(
                             tag: index == 0 ? 'product-${product['id']}' : carouselImages[index],
-                            child: CachedNetworkImage(
-                              imageUrl: carouselImages[index],
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: Colors.white, child: const Center(child: CircularProgressIndicator(color: Color(0xFFF15A24)))),
-                              errorWidget: (context, url, error) => Container(color: Colors.white, child: const Icon(Icons.fastfood, size: 80, color: Colors.grey)),
-                            ),
+                            child: imageWidget,
                           ),
                         );
                       },
@@ -346,29 +360,13 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
                       ),
                       // Customize Button
                       ElevatedButton.icon(
-                        onPressed: () async {
-                          final result = await showModalBottomSheet(
+                        onPressed: () {
+                          showModalBottomSheet(
                             context: context,
                             isScrollControlled: true,
                             backgroundColor: Colors.transparent,
                             builder: (context) => CustomizationBottomSheet(product: product),
                           );
-                          if (result == true && context.mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => Scaffold(
-                                  appBar: AppBar(
-                                    title: const Text('Your Cart'),
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    elevation: 0,
-                                  ),
-                                  body: const CartPage(),
-                                ),
-                              ),
-                            );
-                          }
                         },
                         icon: const Icon(Icons.tune, size: 16, color: Colors.white),
                         label: const Text('Customize', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
@@ -525,7 +523,13 @@ class _FullScreenImageViewer extends StatefulWidget {
   final List<String> imageUrls;
   final int initialIndex;
   final String productId;
-  const _FullScreenImageViewer({required this.imageUrls, required this.initialIndex, required this.productId});
+  final String dishName;
+  const _FullScreenImageViewer({
+    required this.imageUrls,
+    required this.initialIndex,
+    required this.productId,
+    required this.dishName,
+  });
 
   @override
   State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
@@ -560,18 +564,28 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
         controller: _pageController,
         itemCount: widget.imageUrls.length,
         itemBuilder: (context, index) {
+          final imgUrl = widget.imageUrls[index];
+          Widget imgWidget;
+          if (imgUrl.startsWith('assets/')) {
+            imgWidget = Image.asset(imgUrl, fit: BoxFit.contain, width: double.infinity);
+          } else {
+            imgWidget = Image.network(
+              imgUrl,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              errorBuilder: (c, e, s) => Image.asset(
+                LunchProductCard.resolveDishImageUrl(widget.dishName, null),
+                fit: BoxFit.contain,
+                width: double.infinity,
+              ),
+            );
+          }
           return InteractiveViewer(
             minScale: 0.5,
             maxScale: 4.0,
             child: Hero(
               tag: index == 0 ? 'product-${widget.productId}' : widget.imageUrls[index],
-              child: CachedNetworkImage(
-                imageUrl: widget.imageUrls[index],
-                fit: BoxFit.contain,
-                width: double.infinity,
-                placeholder: (context, url) => const Center(child: CircularProgressIndicator(color: Color(0xFFF15A24))),
-                errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.white, size: 50),
-              ),
+              child: imgWidget,
             ),
           );
         },
