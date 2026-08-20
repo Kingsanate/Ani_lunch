@@ -153,6 +153,134 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _showForgotPasswordDialog() async {
+    final resetEmailController = TextEditingController(text: _emailController.text.trim());
+    final resetFormKey = GlobalKey<FormState>();
+    bool isSending = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(dialogCtx).viewInsets.bottom,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Form(
+                key: resetFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF15A24).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.lock_reset_rounded, color: Color(0xFFF15A24), size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Reset Password',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C1A0E)),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                "We'll send a reset link to your email",
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: resetEmailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autofocus: true,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Please enter your email address';
+                        if (!v.contains('@') || !v.contains('.')) return 'Please enter a valid email address';
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Email Address',
+                        prefixIcon: Icon(Icons.email_outlined, color: Colors.grey[400]),
+                        filled: true,
+                        fillColor: const Color(0xFFF9F6F3),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: isSending
+                            ? null
+                            : () async {
+                                if (!resetFormKey.currentState!.validate()) return;
+                                setDialogState(() => isSending = true);
+                                final email = resetEmailController.text.trim();
+                                try {
+                                  await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                                  _showNotification('Password reset link sent to $email. Please check your inbox.', isError: false);
+                                } catch (err) {
+                                  setDialogState(() => isSending = false);
+                                  _showNotification(_parseAuthError(err), isError: true);
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF15A24),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: isSending
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Send Reset Link', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,7 +323,14 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 16),
                   _buildField('Password', _passwordController, Icons.lock_outline, isPassword: true, validator: (v) => v!.length < 6 ? 'Min 6 chars' : null),
                   const SizedBox(height: 12),
-                  if (_isLogin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () {}, child: const Text('Forgot Password?', style: TextStyle(color: Color(0xFFF15A24))))),
+                  if (_isLogin)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _showForgotPasswordDialog,
+                        child: const Text('Forgot Password?', style: TextStyle(color: Color(0xFFF15A24), fontWeight: FontWeight.w600)),
+                      ),
+                    ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
