@@ -9,8 +9,38 @@ import '../models/smart_image.dart';
 import 'auth_page.dart';
 import 'edit_information_page.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  Map<String, dynamic>? _dbProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+  }
+
+  Future<void> _fetchProfile() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    try {
+      final data = await Supabase.instance.client
+          .from('users')
+          .select()
+          .eq('user_id', user.id)
+          .maybeSingle();
+      if (mounted && data != null) {
+        setState(() {
+          _dbProfile = data;
+        });
+      }
+    } catch (_) {}
+  }
 
   Widget _buildMenuOption(IconData icon, String title, {bool isDestructive = false, VoidCallback? onTap}) {
     return ListTile(
@@ -30,6 +60,13 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
+    final avatarUrl = _dbProfile?['profile_image_url'] ??
+        user?.userMetadata?['profile_image_url'];
+    final fullName = _dbProfile?['name'] ??
+        user?.userMetadata?['full_name'] ??
+        'Member';
+    final email = _dbProfile?['email'] ?? user?.email ?? 'No Email';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9F6F3),
       body: SafeArea(
@@ -43,15 +80,17 @@ class ProfilePage extends StatelessWidget {
                 decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(bottomLeft: Radius.circular(24), bottomRight: Radius.circular(24)),
                   boxShadow: [BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2))]),
                 child: Column(children: [
-                  CircleAvatar(radius: 40,
-                    backgroundImage: user?.userMetadata?['profile_image_url'] != null
-                      ? SmartImage.provider(user!.userMetadata!['profile_image_url'])
-                      : const AssetImage('assets/images/hero.png'),
-                    backgroundColor: const Color(0xFFF9F6F3)),
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundImage: avatarUrl != null && avatarUrl.toString().isNotEmpty
+                        ? SmartImage.provider(avatarUrl.toString())
+                        : const AssetImage('assets/images/hero.png'),
+                    backgroundColor: const Color(0xFFF9F6F3),
+                  ),
                   const SizedBox(height: 12),
-                  Text(user?.userMetadata?['full_name'] ?? 'Guest', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C1A0E))),
+                  Text(fullName.toString(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C1A0E))),
                   const SizedBox(height: 2),
-                  Text(user?.email ?? 'No Email', style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
+                  Text(email.toString(), style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 12),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(color: const Color(0xFF8CC63F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
@@ -70,7 +109,10 @@ class ProfilePage extends StatelessWidget {
                   Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x04000000), blurRadius: 8, offset: Offset(0, 2))]),
                     child: Column(children: [
                       _buildMenuOption(Icons.person_outline_rounded, 'Edit Information', onTap: () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditInformationPage()));
+                        final updated = await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditInformationPage()));
+                        if (updated == true && mounted) {
+                          _fetchProfile();
+                        }
                       }),
                       Divider(height: 1, color: Colors.grey[100], indent: 64),
                       _buildMenuOption(Icons.payment_rounded, 'Payment Methods', onTap: () {

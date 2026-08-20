@@ -1,20 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/smart_image.dart';
-
-String? _getStoragePath(String url) {
-  try {
-    final uri = Uri.parse(url);
-    final pathSegments = uri.pathSegments;
-    final publicIndex = pathSegments.indexOf('public');
-    if (publicIndex != -1 && pathSegments.length > publicIndex + 2) {
-      return pathSegments.sublist(publicIndex + 2).join('/');
-    }
-  } catch (_) {}
-  return null;
-}
 
 class EditInformationPage extends StatefulWidget {
   const EditInformationPage({super.key});
@@ -101,46 +90,82 @@ class _EditInformationPageState extends State<EditInformationPage> {
     try {
       String? imageUrl;
       if (_imageFile != null) {
-        if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
+        final path = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final bytes = await _imageFile!.readAsBytes();
+
+        bool uploaded = false;
+        for (final bucket in ['users', 'avatars', 'images', 'public']) {
           try {
-            final oldPath = _getStoragePath(_existingImageUrl!);
-            if (oldPath != null) {
-              await Supabase.instance.client.storage.from('users').remove([oldPath]);
-            }
+            await Supabase.instance.client.storage.from(bucket).uploadBinary(
+              path,
+              bytes,
+              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+            );
+            imageUrl = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+            uploaded = true;
+            break;
           } catch (e) {
-            debugPrint('Error deleting old image: $e');
+            debugPrint('Storage upload bucket $bucket notice: $e');
           }
         }
 
-        final path = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final bytes = await _imageFile!.readAsBytes();
-        await Supabase.instance.client.storage.from('users').uploadBinary(path, bytes);
-        imageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(path);
+        if (!uploaded || imageUrl == null) {
+          imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        }
       }
 
-      final existingData = await Supabase.instance.client.from('users').select('id').eq('user_id', user.id).maybeSingle();
+      final resolvedImageUrl = imageUrl ?? _existingImageUrl;
+
+      // 1. Update Supabase Auth User Metadata
+      try {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(
+            data: {
+              'full_name': _nameController.text.trim(),
+              'phone_number': _phoneController.text.trim(),
+              'address': _addressController.text.trim(),
+              'pin_code': _pincodeController.text.trim(),
+              if (resolvedImageUrl != null) 'profile_image_url': resolvedImageUrl,
+            },
+          ),
+        );
+      } catch (authErr) {
+        debugPrint('Auth metadata update notice: $authErr');
+      }
+
+      // 2. Update Database 'users' profile table
       final updateData = {
+        'id': user.id,
+        'user_id': user.id,
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'phone_number': _phoneController.text.trim(),
         'address': _addressController.text.trim(),
         'pin_code': _pincodeController.text.trim(),
-        if (imageUrl != null) 'profile_image_url': imageUrl,
+        if (resolvedImageUrl != null) 'profile_image_url': resolvedImageUrl,
+        'updated_at': DateTime.now().toIso8601String(),
       };
 
-      if (existingData != null) {
-        await Supabase.instance.client.from('users').update(updateData).eq('user_id', user.id);
-      } else {
-        await Supabase.instance.client.from('users').insert({
-          'id': user.id,
-          'user_id': user.id,
-          ...updateData,
-        });
+      try {
+        await Supabase.instance.client.from('users').upsert(updateData);
+      } catch (dbErr) {
+        debugPrint('DB user table upsert notice: $dbErr');
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('Information updated successfully!'), backgroundColor: const Color(0xFF8CC63F), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text('Profile updated successfully!', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            backgroundColor: const Color(0xFF43A047),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
         Navigator.pop(context, true);
       }

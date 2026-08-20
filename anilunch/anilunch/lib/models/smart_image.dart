@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -21,6 +22,9 @@ class SmartImage extends StatelessWidget {
         placeholder: (context, url) => Container(width: width, height: height, color: Colors.grey[100], child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))),
         errorWidget: (context, url, error) => Container(width: width, height: height, color: Colors.grey[200], child: const Icon(Icons.error_outline)),
       );
+    } else if (imagePath.startsWith('data:image')) {
+      final base64String = imagePath.split(',').last;
+      image = Image.memory(base64Decode(base64String), width: width, height: height, fit: fit);
     } else {
       image = Image.asset(imagePath, width: width, height: height, fit: fit);
     }
@@ -29,6 +33,10 @@ class SmartImage extends StatelessWidget {
   static ImageProvider provider(String imagePath) {
     if (imagePath.startsWith('http') || imagePath.startsWith('blob:')) {
       return CachedNetworkImageProvider(imagePath);
+    }
+    if (imagePath.startsWith('data:image')) {
+      final base64String = imagePath.split(',').last;
+      return MemoryImage(base64Decode(base64String));
     }
     return AssetImage(imagePath);
   }
