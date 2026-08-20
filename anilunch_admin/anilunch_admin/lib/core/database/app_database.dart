@@ -12,13 +12,7 @@ class AppDatabase extends _$AppDatabase {
   int get schemaVersion => 1;
 
   static QueryExecutor _openConnection() {
-    return driftDatabase(
-      name: 'animeat_admin_db',
-      web: DriftWebOptions(
-        sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-        driftWorker: Uri.parse('drift_worker.js'),
-      ),
-    );
+    return driftDatabase(name: 'animeat_admin_db');
   }
 
   Future<List<LocalAdminCacheData>> getDataset(String entityType) {

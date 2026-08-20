@@ -269,21 +269,17 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
       paymentStatus: 'pending',
     );
 
-    await Future.delayed(const Duration(milliseconds: 250));
-
-    if (mounted) {
-      Navigator.pop(context); // close loading
-      Navigator.pop(context); // close sheet
-      
-      if (widget.onSuccess != null) {
-        widget.onSuccess!();
-      }
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => OrderSuccessPage(orderId: generatedOrderId)),
-      );
+    final nav = Navigator.of(context, rootNavigator: true);
+    Navigator.pop(context); // close loading
+    Navigator.pop(context); // close sheet
+    
+    if (widget.onSuccess != null) {
+      widget.onSuccess!();
     }
+
+    nav.push(
+      MaterialPageRoute(builder: (_) => OrderSuccessPage(orderId: generatedOrderId)),
+    );
   }
 
   void _showOnlinePaymentDialog({
@@ -419,19 +415,17 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
                           paymentStatus: 'paid',
                         );
 
-                        if (context.mounted) {
-                          Navigator.pop(sheetContext); // close online payment sheet
-                          Navigator.pop(context); // close checkout sheet
+                        final nav = Navigator.of(context, rootNavigator: true);
+                        Navigator.of(sheetContext).pop(); // close online payment sheet
+                        Navigator.of(context).pop(); // close checkout sheet
 
-                          if (widget.onSuccess != null) {
-                            widget.onSuccess!();
-                          }
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => OrderSuccessPage(orderId: orderId)),
-                          );
+                        if (widget.onSuccess != null) {
+                          widget.onSuccess!();
                         }
+
+                        nav.push(
+                          MaterialPageRoute(builder: (_) => OrderSuccessPage(orderId: orderId)),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF16A34A),
@@ -530,9 +524,7 @@ class _LunchCheckoutSheetState extends State<LunchCheckoutSheet> {
           'total_amount': total,
           'status': 'pending',
           'payment_method': paymentMethod,
-          'payment_status': paymentStatus,
           'address': _address,
-          'delivery_address': _address,
           'delivery_fee': _deliveryFee,
           'order_type': widget.isLunchMode ? 'lunch' : 'meat',
         });

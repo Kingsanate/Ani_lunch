@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../views/lunch_product_details_view.dart';
 import '../widgets/customization_bottom_sheet.dart';
 import '../widgets/bouncy_tap.dart';
@@ -60,12 +59,7 @@ class LunchProductCard extends StatelessWidget {
               // Edge-to-edge Background Image
               Hero(
                 tag: 'product-${product['id']}',
-                child: CachedNetworkImage(
-                  imageUrl: resolvedImage,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.grey[100]),
-                  errorWidget: (context, url, error) => _buildPlaceholder(),
-                ),
+                child: _buildProductImage(resolvedImage, name),
               ),
 
               // Dark overlay if out of stock
@@ -294,10 +288,33 @@ class LunchProductCard extends StatelessWidget {
     return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80';
   }
 
-  Widget _buildPlaceholder() {
-    return Container(
-      color: Colors.grey[200],
-      child: const Center(child: Icon(Icons.restaurant, size: 28, color: Colors.black12)),
+  Widget _buildProductImage(String resolvedImage, String name) {
+    String fallbackAsset = 'assets/images/bento.png';
+    final lower = name.toLowerCase();
+    if (lower.contains('chicken') || lower.contains('biryani')) {
+      fallbackAsset = 'assets/images/chicken.png';
+    } else if (lower.contains('pork') || lower.contains('mutton')) {
+      fallbackAsset = 'assets/images/pork.png';
+    } else if (lower.contains('beef') || lower.contains('meat')) {
+      fallbackAsset = 'assets/images/beef.png';
+    } else if (lower.contains('salad') || lower.contains('veg')) {
+      fallbackAsset = 'assets/images/salad.png';
+    }
+
+    if (resolvedImage.startsWith('assets/')) {
+      return Image.asset(resolvedImage, fit: BoxFit.cover);
+    }
+
+    return Image.network(
+      resolvedImage,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return Container(color: const Color(0xFFF7F3F0));
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Image.asset(fallbackAsset, fit: BoxFit.cover);
+      },
     );
   }
 }
