@@ -146,9 +146,18 @@ class _EditInformationPageState extends State<EditInformationPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Unable to update profile. Please try again.'),
+            backgroundColor: const Color(0xFFD32F2F),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
       }
-    } finally { if (mounted) setState(() => _isSaving = false); }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override

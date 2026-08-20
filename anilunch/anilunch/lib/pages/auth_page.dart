@@ -21,6 +21,84 @@ class _AuthPageState extends State<AuthPage> {
   final _addressController = TextEditingController();
   final _pinCodeController = TextEditingController();
 
+  String _parseAuthError(dynamic error) {
+    final errStr = error.toString().toLowerCase();
+
+    if (error is AuthApiException) {
+      final msg = error.message.toLowerCase();
+      if (msg.contains('invalid login credentials') || error.code == 'invalid_credentials') {
+        return 'Incorrect email or password. Please verify and try again.';
+      }
+      if (msg.contains('email not confirmed')) {
+        return 'Your email is not verified yet. Please check your inbox for the activation link.';
+      }
+      if (msg.contains('user already registered') || msg.contains('already exists')) {
+        return 'An account with this email already exists. Please log in.';
+      }
+      if (msg.contains('password should be at least')) {
+        return 'Password must be at least 6 characters long.';
+      }
+      if (msg.contains('rate limit') || msg.contains('too many requests')) {
+        return 'Too many attempts. Please wait a moment before trying again.';
+      }
+      if (error.message.isNotEmpty && !error.message.contains('Exception') && !error.message.contains('{')) {
+        return error.message;
+      }
+    }
+
+    if (errStr.contains('invalid login credentials') || errStr.contains('invalid_credentials')) {
+      return 'Incorrect email or password. Please check your credentials and try again.';
+    }
+    if (errStr.contains('email not confirmed')) {
+      return 'Please verify your email before logging in. Check your inbox for the activation link.';
+    }
+    if (errStr.contains('user already registered') || errStr.contains('already exists')) {
+      return 'This email is already registered. Please sign in instead.';
+    }
+    if (errStr.contains('socketexception') || errStr.contains('network') || errStr.contains('connection')) {
+      return 'Unable to reach the server. Please check your internet connection.';
+    }
+
+    return 'Authentication failed. Please check your details and try again.';
+  }
+
+  void _showNotification(String message, {bool isError = true}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.info_outline_rounded : Icons.check_circle_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? const Color(0xFFD32F2F) : const Color(0xFF388E3C),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        duration: const Duration(seconds: 4),
+        elevation: 4,
+      ),
+    );
+  }
+
   Future<void> _handleAuth() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -45,7 +123,8 @@ class _AuthPageState extends State<AuthPage> {
             'full_name': _nameController.text.trim(),
             'phone_number': _phoneController.text.trim(),
             'address': _addressController.text.trim(),
-          });
+          },
+        );
         if (res.user != null) {
           try {
             await Supabase.instance.client.from('users').insert({
@@ -58,24 +137,20 @@ class _AuthPageState extends State<AuthPage> {
               'pin_code': _pinCodeController.text.trim(),
             });
           } catch (e) {
-            debugPrint('Insert Fail on Registration: $e');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('Profile creation failed: $e'),
-                backgroundColor: Colors.orange,
-              ));
-            }
+            debugPrint('Insert notice on Registration: $e');
           }
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please check your email for confirmation!'), backgroundColor: Color(0xFFF15A24)));
+            _showNotification('Account created! Please check your email to activate your account.', isError: false);
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red));
+        _showNotification(_parseAuthError(e), isError: true);
       }
-    } finally { if (mounted) setState(() => _isLoading = false); }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
