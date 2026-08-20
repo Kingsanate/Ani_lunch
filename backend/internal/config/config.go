@@ -1,4 +1,4 @@
-﻿package config
+package config
 
 import (
 	"os"
@@ -28,9 +28,10 @@ type Config struct {
 	R2PublicBase      string
 
 	// Push Notifications (FCM)
-	FCMServerKey      string
-	FCMProjectID      string
-	FCMServiceAccount string
+	FCMServerKey          string
+	FCMProjectID          string
+	FCMServiceAccountFile string
+	FCMServiceAccountJSON string
 
 	// Pool tuning
 	DBMaxConns        int32
@@ -45,26 +46,27 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Environment:       getEnv("APP_ENV", "development"),
-		Port:              getEnv("PORT", "8080"),
-		DatabaseURL:       getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/animeat?sslmode=disable"),
-		ReadDatabaseURL:   getEnv("READ_DATABASE_URL", ""),
-		RedisURL:          getEnv("REDIS_URL", "redis://localhost:6379"),
-		NatsURL:           getEnv("NATS_URL", "nats://localhost:4222"),
-		JWTSecret:         getEnv("SUPABASE_JWT_SECRET", "super-secret-jwt-key-for-local-dev-must-change"),
-		SupabaseJWTSecret: getEnv("SUPABASE_JWT_SECRET", "super-secret-jwt-key-for-local-dev-must-change"),
-		RazorpayKeyID:     getEnv("RAZORPAY_KEY_ID", "rzp_test_key"),
-		RazorpayKeySecret: getEnv("RAZORPAY_KEY_SECRET", "rzp_test_secret"),
-		WebhookSecret:     getEnv("PAYMENT_WEBHOOK_SECRET", "webhook_secret_key"),
-		R2AccountID:       getEnv("R2_ACCOUNT_ID", ""),
-		R2AccessKeyID:     getEnv("R2_ACCESS_KEY_ID", ""),
-		R2SecretAccessKey: getEnv("R2_SECRET_ACCESS_KEY", ""),
-		R2Bucket:          getEnv("R2_BUCKET", "animeat-media"),
-		R2PublicBase:      getEnv("R2_PUBLIC_BASE", "https://cdn.animeat.app"),
+		Environment:           getEnv("APP_ENV", "development"),
+		Port:                  getEnv("PORT", "8080"),
+		DatabaseURL:           getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/animeat?sslmode=disable"),
+		ReadDatabaseURL:       getEnv("READ_DATABASE_URL", ""),
+		RedisURL:              getEnv("REDIS_URL", "redis://localhost:6379"),
+		NatsURL:               getEnv("NATS_URL", "nats://localhost:4222"),
+		JWTSecret:             getEnv("SUPABASE_JWT_SECRET", "super-secret-jwt-key-for-local-dev-must-change"),
+		SupabaseJWTSecret:     getEnv("SUPABASE_JWT_SECRET", "super-secret-jwt-key-for-local-dev-must-change"),
+		RazorpayKeyID:         getEnv("RAZORPAY_KEY_ID", "rzp_test_key"),
+		RazorpayKeySecret:     getEnv("RAZORPAY_KEY_SECRET", "rzp_test_secret"),
+		WebhookSecret:         getEnv("PAYMENT_WEBHOOK_SECRET", "webhook_secret_key"),
+		R2AccountID:           getEnv("R2_ACCOUNT_ID", ""),
+		R2AccessKeyID:         getEnv("R2_ACCESS_KEY_ID", ""),
+		R2SecretAccessKey:     getEnv("R2_SECRET_ACCESS_KEY", ""),
+		R2Bucket:              getEnv("R2_BUCKET", "animeat-media"),
+		R2PublicBase:          getEnv("R2_PUBLIC_BASE", "https://cdn.animeat.app"),
 
-		FCMServerKey:      getEnv("FCM_SERVER_KEY", ""),
-		FCMProjectID:      getEnv("FCM_PROJECT_ID", ""),
-		FCMServiceAccount: getEnv("FCM_SERVICE_ACCOUNT_JSON", ""),
+		FCMServerKey:          getEnv("FCM_SERVER_KEY", ""),
+		FCMProjectID:          getEnv("FCM_PROJECT_ID", ""),
+		FCMServiceAccountFile: getEnv("FCM_SERVICE_ACCOUNT_FILE", ""),
+		FCMServiceAccountJSON: getEnv("FCM_SERVICE_ACCOUNT_JSON", ""),
 
 		DBMaxConns:        int32(getEnvInt("DB_MAX_CONNS", 25)),
 		DBMinConns:        int32(getEnvInt("DB_MIN_CONNS", 5)),

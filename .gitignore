@@ -6,6 +6,8 @@
 *.pem
 *.cert
 *.p12
+*service-account*.json
+firebase*.json
 
 # Supabase CLI Local Artifacts
 .temp/

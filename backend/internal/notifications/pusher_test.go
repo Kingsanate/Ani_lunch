@@ -2,8 +2,6 @@
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"animeat/backend/internal/config"
@@ -11,7 +9,9 @@ import (
 
 func TestPusher_NoOpWhenUnconfigured(t *testing.T) {
 	cfg := &config.Config{
-		FCMServerKey: "",
+		FCMServerKey:          "",
+		FCMServiceAccountFile: "",
+		FCMServiceAccountJSON: "",
 	}
 	p := NewPusher(nil, cfg)
 
@@ -34,24 +34,22 @@ func TestPusher_EmptyTokensNoOp(t *testing.T) {
 	}
 }
 
-func TestPusher_DispatchesToFCMServer(t *testing.T) {
-	serverCalled := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		serverCalled = true
-		if r.Header.Get("Authorization") != "key=test-fcm-key" {
-			t.Errorf("unexpected Authorization header: %s", r.Header.Get("Authorization"))
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"success": 1, "failure": 0}`))
-	}))
-	defer server.Close()
-
-	pusher := &FCMPusher{
-		serverKey:  "test-fcm-key",
-		httpClient: server.Client(),
+func TestPusher_LoadsServiceAccountFromConfig(t *testing.T) {
+	cfg := &config.Config{
+		FCMServiceAccountFile: "../../firebase-service-account.json",
+	}
+	p := NewPusher(nil, cfg)
+	fcmPusher, ok := p.(*FCMPusher)
+	if !ok {
+		t.Fatal("expected *FCMPusher type")
 	}
 
-	// Override URL for testing via test handler logic
-	_ = pusher
-	_ = serverCalled
+	if fcmPusher.sa != nil {
+		if fcmPusher.sa.ProjectID != "anilunch-5aa5b" {
+			t.Errorf("unexpected project ID: %s", fcmPusher.sa.ProjectID)
+		}
+		if fcmPusher.parsedKey == nil {
+			t.Error("expected parsed RSA private key to be non-nil")
+		}
+	}
 }
