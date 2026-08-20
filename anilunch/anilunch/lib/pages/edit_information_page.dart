@@ -61,8 +61,8 @@ class _EditInformationPageState extends State<EditInformationPage> {
           if ((phoneVal ?? '').toString().isNotEmpty) _phoneController.text = phoneVal.toString();
           if ((data['address'] ?? '').toString().isNotEmpty) _addressController.text = data['address'].toString();
           if ((data['pin_code'] ?? '').toString().isNotEmpty) _pincodeController.text = data['pin_code'].toString();
-          final imgVal = data['avatar_url'] ?? data['profile_image_url'];
-          if ((imgVal ?? '').toString().isNotEmpty) _existingImageUrl = imgVal.toString();
+          final imgVal = data['profile_image_url'] ?? data['avatar_url'];
+          _existingImageUrl = (imgVal != null && imgVal.toString().isNotEmpty) ? imgVal.toString() : null;
         });
       }
     } catch (e) {
