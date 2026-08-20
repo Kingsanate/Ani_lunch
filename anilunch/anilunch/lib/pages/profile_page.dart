@@ -86,10 +86,13 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
-    final avatarUrl = _dbProfile?['profile_image_url'] ??
+    final avatarUrl = _dbProfile?['avatar_url'] ??
+        _dbProfile?['profile_image_url'] ??
+        user?.userMetadata?['avatar_url'] ??
         user?.userMetadata?['profile_image_url'];
     final fullName = _dbProfile?['name'] ??
         user?.userMetadata?['full_name'] ??
+        user?.userMetadata?['name'] ??
         'Member';
     final email = _dbProfile?['email'] ?? user?.email ?? 'No Email';
 

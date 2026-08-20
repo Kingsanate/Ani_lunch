@@ -1,1 +1,5 @@
-CREATE POLICY "Vendors read orders" ON public.orders FOR SELECT USING (auth.role() = 'authenticated'); CREATE POLICY "Vendors update orders" ON public.orders FOR UPDATE USING (auth.role() = 'authenticated');
+-- ============================================================================
+-- Obsolete regression artifact neutralized.
+-- Scoped vendor order policies are defined in 007_secure_rls_policies.sql and hardened in 011/015.
+-- Wide-open 'authenticated' policies removed to preserve order isolation and strict RLS.
+-- ============================================================================

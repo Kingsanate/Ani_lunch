@@ -48,15 +48,27 @@ class _HomePageState extends State<HomePage> {
     try {
       final profile = await Supabase.instance.client
           .from('users')
-          .select('profile_image_url')
+          .select()
           .eq('user_id', user.id)
           .maybeSingle();
       if (mounted && profile != null) {
-        setState(() {
-          _profileImageUrl = profile['profile_image_url']?.toString();
-        });
+        final img = profile['avatar_url'] ?? profile['profile_image_url'];
+        if (img != null && img.toString().isNotEmpty) {
+          setState(() {
+            _profileImageUrl = img.toString();
+          });
+          return;
+        }
       }
     } catch (_) {}
+    if (mounted) {
+      final authImg = user.userMetadata?['avatar_url'] ?? user.userMetadata?['profile_image_url'];
+      if (authImg != null && authImg.toString().isNotEmpty) {
+        setState(() {
+          _profileImageUrl = authImg.toString();
+        });
+      }
+    }
   }
 
   @override

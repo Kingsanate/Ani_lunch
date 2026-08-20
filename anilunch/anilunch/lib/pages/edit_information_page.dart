@@ -43,24 +43,26 @@ class _EditInformationPageState extends State<EditInformationPage> {
     if (user == null) return;
     if (mounted) {
       setState(() {
-        _nameController.text = user.userMetadata?['full_name']?.toString() ?? '';
+        _nameController.text = user.userMetadata?['full_name']?.toString() ?? user.userMetadata?['name']?.toString() ?? '';
         _emailController.text = user.email ?? '';
-        _phoneController.text = user.userMetadata?['phone_number']?.toString() ?? '';
+        _phoneController.text = user.userMetadata?['phone_number']?.toString() ?? user.userMetadata?['phone']?.toString() ?? '';
         _addressController.text = user.userMetadata?['address']?.toString() ?? '';
         _pincodeController.text = user.userMetadata?['pin_code']?.toString() ?? '';
-        _existingImageUrl = user.userMetadata?['profile_image_url']?.toString();
+        _existingImageUrl = user.userMetadata?['avatar_url']?.toString() ?? user.userMetadata?['profile_image_url']?.toString();
       });
     }
     try {
       final data = await Supabase.instance.client.from('users').select().eq('user_id', user.id).maybeSingle();
       if (data != null && mounted) {
         setState(() {
-          if ((data['name'] ?? '').toString().isNotEmpty) _nameController.text = data['name'];
-          if ((data['email'] ?? '').toString().isNotEmpty) _emailController.text = data['email'];
-          if ((data['phone_number'] ?? '').toString().isNotEmpty) _phoneController.text = data['phone_number'];
-          if ((data['address'] ?? '').toString().isNotEmpty) _addressController.text = data['address'];
+          if ((data['name'] ?? '').toString().isNotEmpty) _nameController.text = data['name'].toString();
+          if ((data['email'] ?? '').toString().isNotEmpty) _emailController.text = data['email'].toString();
+          final phoneVal = data['phone'] ?? data['phone_number'];
+          if ((phoneVal ?? '').toString().isNotEmpty) _phoneController.text = phoneVal.toString();
+          if ((data['address'] ?? '').toString().isNotEmpty) _addressController.text = data['address'].toString();
           if ((data['pin_code'] ?? '').toString().isNotEmpty) _pincodeController.text = data['pin_code'].toString();
-          if ((data['profile_image_url'] ?? '').toString().isNotEmpty) _existingImageUrl = data['profile_image_url'];
+          final imgVal = data['avatar_url'] ?? data['profile_image_url'];
+          if ((imgVal ?? '').toString().isNotEmpty) _existingImageUrl = imgVal.toString();
         });
       }
     } catch (e) {
@@ -71,7 +73,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
   Future<void> _pickImage() async {
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 300, maxHeight: 300);
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50, maxWidth: 300, maxHeight: 300);
       if (pickedFile != null) {
         final bytes = await pickedFile.readAsBytes();
         if (mounted) setState(() { _pickedBytes = bytes; });
@@ -85,16 +87,16 @@ class _EditInformationPageState extends State<EditInformationPage> {
 
   Widget _buildAvatarPreview() {
     if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
-      return Image.memory(_pickedBytes!, fit: BoxFit.cover, width: 120, height: 120, errorBuilder: (_, __, ___) => _defaultAvatar());
+      return Image.memory(_pickedBytes!, fit: BoxFit.cover, width: 120, height: 120, gaplessPlayback: true, errorBuilder: (_, __, ___) => _defaultAvatar());
     }
     if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
       final url = _existingImageUrl!;
       if (url.startsWith('data:image')) {
         try {
-          return Image.memory(base64Decode(url.split(',').last), fit: BoxFit.cover, width: 120, height: 120, errorBuilder: (_, __, ___) => _defaultAvatar());
+          return Image.memory(base64Decode(url.split(',').last), fit: BoxFit.cover, width: 120, height: 120, gaplessPlayback: true, errorBuilder: (_, __, ___) => _defaultAvatar());
         } catch (_) {}
-      } else if (url.startsWith('http')) {
-        return Image.network(url, fit: BoxFit.cover, width: 120, height: 120, errorBuilder: (_, __, ___) => _defaultAvatar());
+      } else if (url.startsWith('http') || url.startsWith('blob:')) {
+        return Image.network(url, fit: BoxFit.cover, width: 120, height: 120, gaplessPlayback: true, errorBuilder: (_, __, ___) => _defaultAvatar());
       }
     }
     return _defaultAvatar();
@@ -109,65 +111,95 @@ class _EditInformationPageState extends State<EditInformationPage> {
       String? finalImageUrl = _existingImageUrl;
       if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
         String? storageUrl;
+        final filename = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
         try {
-          final path = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          await Supabase.instance.client.storage.from('users').uploadBinary(path, _pickedBytes!, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
-          storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(path);
-        } catch (e) {
-          debugPrint('Storage upload failed: $e');
+          await Supabase.instance.client.storage.from('avatars').uploadBinary(filename, _pickedBytes!, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
+          storageUrl = Supabase.instance.client.storage.from('avatars').getPublicUrl(filename);
+        } catch (_) {
+          try {
+            await Supabase.instance.client.storage.from('users').uploadBinary(filename, _pickedBytes!, fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true));
+            storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(filename);
+          } catch (e) {
+            debugPrint('Storage upload notice: $e');
+          }
         }
         finalImageUrl = (storageUrl != null && storageUrl.isNotEmpty) ? storageUrl : 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
       }
+
       final name = _nameController.text.trim();
       final phone = _phoneController.text.trim();
       final address = _addressController.text.trim();
       final pincode = _pincodeController.text.trim();
       final email = _emailController.text.trim();
-      final authImageUrl = (finalImageUrl != null && finalImageUrl.startsWith('http')) ? finalImageUrl : null;
+
+      // 1. Update Supabase Auth User Metadata
       try {
         await Supabase.instance.client.auth.updateUser(UserAttributes(data: {
           'full_name': name,
+          'name': name,
           'phone_number': phone,
+          'phone': phone,
           'address': address,
           'pin_code': pincode,
-          if (authImageUrl != null) 'profile_image_url': authImageUrl,
+          if (finalImageUrl != null) 'avatar_url': finalImageUrl,
+          if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
         }));
       } catch (e) {
         debugPrint('Auth metadata notice: $e');
       }
+
+      // 2. Update public.users database table (try canonical columns first, then extended)
+      bool dbSaved = false;
       try {
         await Supabase.instance.client.from('users').upsert({
           'user_id': user.id,
           'name': name,
           'email': email,
-          'phone_number': phone,
+          'phone': phone,
           'address': address,
-          'pin_code': pincode,
-          if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
+          if (finalImageUrl != null) 'avatar_url': finalImageUrl,
           'updated_at': DateTime.now().toIso8601String(),
         }, onConflict: 'user_id');
-        debugPrint('DB upsert OK — image: ${finalImageUrl?.substring(0, (finalImageUrl?.length ?? 0).clamp(0, 50))}');
-      } catch (e) {
-        debugPrint('DB upsert FAILED: $e');
+        dbSaved = true;
+      } catch (e1) {
+        debugPrint('DB upsert canonical attempt notice: $e1');
+        try {
+          await Supabase.instance.client.from('users').upsert({
+            'user_id': user.id,
+            'name': name,
+            'email': email,
+            'phone_number': phone,
+            'phone': phone,
+            'address': address,
+            'pin_code': pincode,
+            if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
+            if (finalImageUrl != null) 'avatar_url': finalImageUrl,
+            'updated_at': DateTime.now().toIso8601String(),
+          }, onConflict: 'user_id');
+          dbSaved = true;
+        } catch (e2) {
+          debugPrint('DB upsert extended attempt notice: $e2');
+        }
       }
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Row(children: [Icon(Icons.check_circle_rounded, color: Colors.white, size: 20), SizedBox(width: 10), Text('Profile updated successfully!', style: TextStyle(fontWeight: FontWeight.bold))]),
-          backgroundColor: const Color(0xFF43A047),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Row(children: [Icon(Icons.check_circle_rounded, color: Colors.white, size: 20), SizedBox(width: 10), Text('Profile updated successfully!', style: TextStyle(fontWeight: FontWeight.bold))]),
+          backgroundColor: Color(0xFF43A047),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ));
         Navigator.pop(context, true);
       }
     } catch (e) {
       debugPrint('Save error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Unable to update profile. Please try again.'),
-          backgroundColor: const Color(0xFFD32F2F),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Unable to update profile. Please try again.'),
+          backgroundColor: Color(0xFFD32F2F),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         ));
       }
     } finally {
