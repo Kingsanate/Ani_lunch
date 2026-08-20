@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/smart_image.dart';
 
 class EditInformationPage extends StatefulWidget {
   const EditInformationPage({super.key});
@@ -19,6 +18,7 @@ class _EditInformationPageState extends State<EditInformationPage> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _pincodeController = TextEditingController();
+  Uint8List? _pickedBytes;
   XFile? _imageFile;
   String? _existingImageUrl;
 
@@ -68,16 +68,50 @@ class _EditInformationPageState extends State<EditInformationPage> {
         });
       }
     } catch (e) {
-      debugPrint('Fetch profile Database bypassed natively: $e');
+      debugPrint('Fetch profile Database notice: $e');
     }
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (pickedFile != null) {
-      setState(() { _imageFile = pickedFile; });
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          _imageFile = pickedFile;
+          _pickedBytes = bytes;
+        });
+      }
+    } catch (e) {
+      debugPrint('Pick image notice: $e');
     }
+  }
+
+  Widget _buildAvatarPreview() {
+    if (_pickedBytes != null) {
+      return Image.memory(_pickedBytes!, fit: BoxFit.cover, width: 120, height: 120);
+    }
+    if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
+      final url = _existingImageUrl!;
+      if (url.startsWith('data:image')) {
+        try {
+          final base64String = url.split(',').last;
+          return Image.memory(base64Decode(base64String), fit: BoxFit.cover, width: 120, height: 120);
+        } catch (_) {}
+      } else if (url.startsWith('http') || url.startsWith('blob:')) {
+        return Image.network(
+          url,
+          fit: BoxFit.cover,
+          width: 120,
+          height: 120,
+          errorBuilder: (_, __, ___) => Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 120, height: 120),
+        );
+      } else if (url.startsWith('assets/')) {
+        return Image.asset(url, fit: BoxFit.cover, width: 120, height: 120);
+      }
+    }
+    return Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 120, height: 120);
   }
 
   Future<void> _saveCredentials() async {
@@ -89,9 +123,9 @@ class _EditInformationPageState extends State<EditInformationPage> {
 
     try {
       String? imageUrl;
-      if (_imageFile != null) {
+      if (_pickedBytes != null || _imageFile != null) {
+        final bytes = _pickedBytes ?? await _imageFile!.readAsBytes();
         final path = 'profiles/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final bytes = await _imageFile!.readAsBytes();
 
         bool uploaded = false;
         for (final bucket in ['users', 'avatars', 'images', 'public']) {
@@ -206,16 +240,24 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 Center(
                   child: Stack(
                     children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.grey[200],
-                        backgroundImage: _imageFile != null
-                            ? (kIsWeb
-                                ? NetworkImage(_imageFile!.path)
-                                : SmartImage.provider(_imageFile!.path))
-                            : (_existingImageUrl != null
-                                ? SmartImage.provider(_existingImageUrl!)
-                                : const AssetImage('assets/images/hero.png')),
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.grey.shade100,
+                          border: Border.all(color: const Color(0xFFF15A24).withValues(alpha: 0.3), width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: _buildAvatarPreview(),
+                        ),
                       ),
                       Positioned(
                         bottom: 0,
@@ -223,8 +265,18 @@ class _EditInformationPageState extends State<EditInformationPage> {
                         child: GestureDetector(
                           onTap: _pickImage,
                           child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(color: Color(0xFFF15A24), shape: BoxShape.circle),
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF15A24),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0x3DF15A24),
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
                             child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
                           ),
                         ),

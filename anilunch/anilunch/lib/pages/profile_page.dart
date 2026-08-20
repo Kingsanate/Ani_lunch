@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,7 +6,6 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/lunch_provider.dart';
 import '../providers/order_provider.dart';
-import '../models/smart_image.dart';
 import 'auth_page.dart';
 import 'edit_information_page.dart';
 
@@ -40,6 +40,29 @@ class _ProfilePageState extends State<ProfilePage> {
         });
       }
     } catch (_) {}
+  }
+
+  Widget _buildAvatarWidget(dynamic avatarUrl) {
+    if (avatarUrl != null && avatarUrl.toString().trim().isNotEmpty) {
+      final url = avatarUrl.toString().trim();
+      if (url.startsWith('data:image')) {
+        try {
+          final base64String = url.split(',').last;
+          return Image.memory(base64Decode(base64String), fit: BoxFit.cover, width: 80, height: 80);
+        } catch (_) {}
+      } else if (url.startsWith('http') || url.startsWith('blob:')) {
+        return Image.network(
+          url,
+          fit: BoxFit.cover,
+          width: 80,
+          height: 80,
+          errorBuilder: (_, __, ___) => Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 80, height: 80),
+        );
+      } else if (url.startsWith('assets/')) {
+        return Image.asset(url, fit: BoxFit.cover, width: 80, height: 80);
+      }
+    }
+    return Image.asset('assets/images/hero.png', fit: BoxFit.cover, width: 80, height: 80);
   }
 
   Widget _buildMenuOption(IconData icon, String title, {bool isDestructive = false, VoidCallback? onTap}) {
@@ -80,12 +103,24 @@ class _ProfilePageState extends State<ProfilePage> {
                 decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(bottomLeft: Radius.circular(24), bottomRight: Radius.circular(24)),
                   boxShadow: [BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2))]),
                 child: Column(children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundImage: avatarUrl != null && avatarUrl.toString().isNotEmpty
-                        ? SmartImage.provider(avatarUrl.toString())
-                        : const AssetImage('assets/images/hero.png'),
-                    backgroundColor: const Color(0xFFF9F6F3),
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey.shade100,
+                      border: Border.all(color: const Color(0xFFF15A24).withValues(alpha: 0.2), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        )
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: _buildAvatarWidget(avatarUrl),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(fullName.toString(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C1A0E))),
