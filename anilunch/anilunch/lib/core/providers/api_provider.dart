@@ -74,11 +74,25 @@ class AniApi {
     final instance = _instance;
     if (instance == null) return;
 
-    final token = supabaseToken ??
-        Supabase.instance.client.auth.currentSession?.accessToken;
+    final session = Supabase.instance.client.auth.currentSession;
+    final token = supabaseToken ?? session?.accessToken;
     if (token == null || token.isEmpty) {
       await instance.tokens.clear();
       return;
+    }
+
+    if (session != null && session.isExpired) {
+      try {
+        final res = await Supabase.instance.client.auth.refreshSession();
+        final refreshedToken = res.session?.accessToken;
+        if (refreshedToken != null && refreshedToken.isNotEmpty) {
+          await instance.api.client.exchangeSupabaseToken(refreshedToken);
+          try {
+            await instance.realtime.connect();
+          } catch (_) {}
+          return;
+        }
+      } catch (_) {}
     }
 
     try {
@@ -86,10 +100,11 @@ class AniApi {
       try {
         await instance.realtime.connect();
       } catch (e) {
-        debugPrint('Realtime connect failed: $e');
+        debugPrint('Realtime connect notice: $e');
       }
     } catch (e) {
-      debugPrint('Token exchange failed: $e');
+      debugPrint('Token exchange notice: $e');
+      await instance.tokens.clear();
     }
   }
 }
