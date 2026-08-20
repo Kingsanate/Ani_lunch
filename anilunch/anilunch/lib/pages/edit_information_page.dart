@@ -75,7 +75,12 @@ class _EditInformationPageState extends State<EditInformationPage> {
   Future<void> _pickImage() async {
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 50,
+        maxWidth: 400,
+        maxHeight: 400,
+      );
       if (pickedFile != null) {
         final bytes = await pickedFile.readAsBytes();
         setState(() {
@@ -223,23 +228,26 @@ class _EditInformationPageState extends State<EditInformationPage> {
                 Center(
                   child: Stack(
                     children: [
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.grey.shade100,
-                          border: Border.all(color: const Color(0xFFF15A24).withValues(alpha: 0.3), width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: _buildAvatarPreview(),
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.grey.shade100,
+                            border: Border.all(color: const Color(0xFFF15A24).withValues(alpha: 0.3), width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: _buildAvatarPreview(),
+                          ),
                         ),
                       ),
                       Positioned(
