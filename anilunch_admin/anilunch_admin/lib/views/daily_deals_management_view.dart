@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin_theme.dart';
 import '../core/cache/admin_cache.dart';
 import '../services/api_client.dart';

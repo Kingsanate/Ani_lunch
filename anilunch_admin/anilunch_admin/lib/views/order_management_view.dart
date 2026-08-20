@@ -26,7 +26,7 @@ class _OrderManagementViewState extends State<OrderManagementView> {
   StreamSubscription<WsEvent>? _ordersChannel;
 
   // Extended status labels for the full food delivery lifecycle
-  static const _filterTabs = [
+  static const List<Map<String, String?>> _filterTabs = [
     {'label': 'All', 'value': null},
     {'label': 'Pending', 'value': 'pending'},
     {'label': 'Preparing', 'value': 'preparing'},
@@ -154,8 +154,8 @@ class _OrderManagementViewState extends State<OrderManagementView> {
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         child: Row(
           children: _filterTabs.map((tab) {
-            final value = tab['value'] as String?;
-            final label = tab['label'] as String;
+            final value = tab['value'];
+            final label = tab['label']!;
             final isSelected = _statusFilter == value;
             final color = value == null
                 ? AdminTheme.dark
@@ -474,6 +474,7 @@ class _OrderManagementViewState extends State<OrderManagementView> {
 
     return GestureDetector(
       onTap: () async {
+        final messenger = ScaffoldMessenger.of(context);
         try {
           final targetStatus = nextStatus!;
           // API-first transition with Supabase fallback.
@@ -484,15 +485,14 @@ class _OrderManagementViewState extends State<OrderManagementView> {
                 .eq('id', orderId);
           }
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            messenger.showSnackBar(SnackBar(
               content: Text('\u2705 Order updated to ${targetStatus.replaceAll('_', ' ')}'),
               backgroundColor: _statusColorForFilter(targetStatus),
             ));
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text('Error: $e')));
+            messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
           }
         }
       },
@@ -505,7 +505,7 @@ class _OrderManagementViewState extends State<OrderManagementView> {
         child: Row(children: [
           Icon(icon, color: Colors.white, size: 12),
           const SizedBox(width: 5),
-          Text(label!,
+          Text(label,
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,

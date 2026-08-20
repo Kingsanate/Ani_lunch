@@ -732,7 +732,7 @@ class _RiderManagementViewState extends State<RiderManagementView>
                       'Deliveries', const Color(0xFF6366F1)),
                   _vertDivider(),
                   _statItem(Icons.currency_rupee,
-                      '${earnings.toStringAsFixed(0)}', 'Earned',
+                      earnings.toStringAsFixed(0), 'Earned',
                       const Color(0xFF16A34A)),
                   _vertDivider(),
                   _statItem(Icons.calendar_today_outlined, joinDate, 'Joined',

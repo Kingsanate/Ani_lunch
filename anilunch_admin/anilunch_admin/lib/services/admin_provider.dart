@@ -9,7 +9,7 @@ class AdminProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _riders = [];
   List<Map<String, dynamic>> _menuItems = [];
   List<Map<String, dynamic>> _dailyDeals = [];
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
 
   List<Map<String, dynamic>> get orders => _orders;

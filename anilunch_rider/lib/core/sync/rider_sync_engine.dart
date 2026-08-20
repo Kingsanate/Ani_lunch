@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../cache/order_cache.dart';
 import '../database/app_database.dart';
 import '../providers/api_provider.dart';

@@ -614,11 +614,8 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                               item['customizations'] is Map) {
                             final custom = item['customizations'] as Map;
                             if (custom.isNotEmpty) {
-                              customStr = '\n' +
-                                  custom.entries
-                                      .map((e) =>
-                                          '• ${e.key}: ${e.value}')
-                                      .join('\n');
+                              customStr =
+                                  '\n${custom.entries.map((e) => '• ${e.key}: ${e.value}').join('\n')}';
                             }
                           }
                           final imageUrl = item['image']?.toString();
@@ -816,10 +813,8 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                     item['customizations'] is Map) {
                   final custom = item['customizations'] as Map;
                   if (custom.isNotEmpty) {
-                    customStr = '\n' +
-                        custom.entries
-                            .map((e) => '   - ${e.key}: ${e.value}')
-                            .join('\n');
+                    customStr =
+                        '\n${custom.entries.map((e) => '   - ${e.key}: ${e.value}').join('\n')}';
                   }
                 }
                 final imageUrl = item['image']?.toString();

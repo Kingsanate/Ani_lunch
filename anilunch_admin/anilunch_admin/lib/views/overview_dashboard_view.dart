@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin_theme.dart';
 import '../core/cache/admin_cache.dart';
 import '../core/providers/api_provider.dart';

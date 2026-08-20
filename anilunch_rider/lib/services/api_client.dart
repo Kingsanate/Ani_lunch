@@ -1,4 +1,3 @@
-import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/foundation.dart';
 import '../core/providers/api_provider.dart';
 

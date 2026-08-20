@@ -83,7 +83,7 @@ class _ProfileTabState extends State<ProfileTab> {
             Center(
               child: CircleAvatar(
                 radius: 48,
-                backgroundColor: VendorTheme.primary.withOpacity(0.1),
+                backgroundColor: VendorTheme.primary.withValues(alpha: 0.1),
                 child: const Icon(Icons.storefront, size: 48, color: VendorTheme.primary),
               ),
             ),
@@ -114,7 +114,7 @@ class _ProfileTabState extends State<ProfileTab> {
               child: Column(
                 children: [
                   SwitchListTile(
-                    activeColor: VendorTheme.primary,
+                    activeThumbColor: VendorTheme.primary,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     title: Text('Store Open', style: VendorTheme.headingSmall),
                     subtitle: Text(

@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 
 services:
   # 1. PostgreSQL Primary
@@ -14,17 +14,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-- ../supabase/migrations/000_base_schema.sql:/docker-entrypoint-initdb.d/000_base_schema.sql:ro
-      - ../supabase/migrations/007_secure_rls_policies.sql:/docker-entrypoint-initdb.d/007_secure_rls_policies.sql:ro
-      - ../supabase/migrations/008_api_v1_canonical_schema.sql:/docker-entrypoint-initdb.d/008_api_v1_canonical_schema.sql:ro
-      - ../supabase/migrations/009_notifications.sql:/docker-entrypoint-initdb.d/009_notifications.sql:ro
-      - ../supabase/migrations/010_sellers_vendors_reconciliation.sql:/docker-entrypoint-initdb.d/010_sellers_vendors_reconciliation.sql:ro
-      - ../supabase/migrations/010_menus_items_deals_schema.sql:/docker-entrypoint-initdb.d/010_menus_items_deals_schema.sql:ro
-      - ../supabase/migrations/012_users_pages_schema.sql:/docker-entrypoint-initdb.d/012_users_pages_schema.sql:ro
-      - ../supabase/migrations/013_seed_catalog_data.sql:/docker-entrypoint-initdb.d/013_seed_catalog_data.sql:ro
-      - ../supabase/migrations/014_fix_id_types_and_rls.sql:/docker-entrypoint-initdb.d/014_fix_id_types_and_rls.sql:ro
-      - ../supabase/migrations/015_security_hardening.sql:/docker-entrypoint-initdb.d/015_security_hardening.sql:ro
-      - ../supabase/migrations/016_server_side_money_validation.sql:/docker-entrypoint-initdb.d/016_server_side_money_validation.sql:ro
+      - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d animeat"]
       interval: 5s
@@ -108,9 +98,14 @@ services:
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
       SUPABASE_JWT_SECRET: super-secret-jwt-key-for-local-dev-must-change
-      RAZORPAY_KEY_ID: rzp_test_key
-      RAZORPAY_KEY_SECRET: rzp_test_secret
-      PAYMENT_WEBHOOK_SECRET: webhook_secret_key
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_key}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-rzp_test_secret}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-webhook_secret_key}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-animeat-media}
+      R2_PUBLIC_BASE: ${R2_PUBLIC_BASE:-https://cdn.animeat.app}
 
   # 6. k6 Load Tester (optional; runs only with `--profile loadtest`)
   k6:

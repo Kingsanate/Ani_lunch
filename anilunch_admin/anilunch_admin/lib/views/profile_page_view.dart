@@ -127,10 +127,10 @@ class _ProfilePageViewState extends State<ProfilePageView> {
               width: double.infinity,
               child: OutlinedButton(
                 onPressed: () async {
+                  final nav = Navigator.of(context);
                   await Supabase.instance.client.auth.signOut();
                   if (!mounted) return;
-                  Navigator.pushAndRemoveUntil(
-                    context,
+                  nav.pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginView()),
                     (route) => false,
                   );

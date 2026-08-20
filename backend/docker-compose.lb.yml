@@ -45,6 +45,11 @@ x-api: &api
     RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_key}
     RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-rzp_test_secret}
     PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-webhook_secret_key}
+    R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+    R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+    R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+    R2_BUCKET: ${R2_BUCKET:-animeat-media}
+    R2_PUBLIC_BASE: ${R2_PUBLIC_BASE:-https://cdn.animeat.app}
   # No host port mapping: traffic enters only through Caddy.
 
 services:

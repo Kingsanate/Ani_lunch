@@ -1,4 +1,3 @@
-import 'package:anilunch_core/anilunch_core.dart' hide User;
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';

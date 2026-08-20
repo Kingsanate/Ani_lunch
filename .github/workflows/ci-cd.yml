@@ -1,0 +1,117 @@
+﻿name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # 1. Go Backend Verification
+  # ============================================================================
+  backend:
+    name: Go Backend (Lint, Test, Compose)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Verify Module Dependencies (go mod tidy)
+        run: |
+          go mod tidy
+          if ! git diff --exit-code go.mod go.sum; then
+            echo "::error::go.mod or go.sum is not tidy. Run 'go mod tidy' locally."
+            exit 1
+          fi
+
+      - name: Run Backend Test Suite (18 packages)
+        run: go test -v -race ./...
+
+      - name: Validate Docker Compose Configuration
+        working-directory: .
+        run: |
+          docker compose -f backend/docker-compose.yml config --quiet
+          docker compose -f backend/docker-compose.lb.yml config --quiet
+
+  # ============================================================================
+  # 2. Flutter Monorepo Static Analysis
+  # ============================================================================
+  flutter:
+    name: Flutter Apps & Packages Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Print Flutter & Dart Version
+        run: flutter --version
+
+      # Step 2a: Shared Core Package (must be resolved first)
+      - name: Analyze packages/anilunch_core
+        working-directory: packages/anilunch_core
+        run: |
+          echo "=== Getting dependencies for anilunch_core ==="
+          flutter pub get
+          echo "=== Analyzing anilunch_core ==="
+          flutter analyze
+
+      # Step 2b: Customer App
+      - name: Analyze anilunch (Customer App)
+        working-directory: anilunch/anilunch
+        run: |
+          echo "=== Getting dependencies for customer app ==="
+          flutter pub get
+          echo "=== Analyzing customer app ==="
+          flutter analyze --no-fatal-infos
+
+      # Step 2c: Rider App
+      - name: Analyze anilunch_rider
+        working-directory: anilunch_rider
+        run: |
+          echo "=== Getting dependencies for rider app ==="
+          flutter pub get
+          echo "=== Analyzing rider app ==="
+          flutter analyze
+
+      # Step 2d: Vendor App
+      - name: Analyze anilunch_vendor
+        working-directory: anilunch_vendor
+        run: |
+          echo "=== Getting dependencies for vendor app ==="
+          flutter pub get
+          echo "=== Analyzing vendor app ==="
+          flutter analyze
+
+      # Step 2e: Admin App
+      - name: Analyze anilunch_admin
+        working-directory: anilunch_admin/anilunch_admin
+        run: |
+          echo "=== Getting dependencies for admin app ==="
+          flutter pub get
+          echo "=== Analyzing admin app ==="
+          flutter analyze
