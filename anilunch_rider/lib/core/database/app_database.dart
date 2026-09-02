@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'tables/orders_table.dart';
 import 'tables/rider_profile_table.dart';
 import 'tables/sync_queue_table.dart';
@@ -14,6 +15,15 @@ class AppDatabase extends _$AppDatabase {
   int get schemaVersion => 1;
 
   static QueryExecutor _openConnection() {
+    if (kIsWeb) {
+      return driftDatabase(
+        name: 'animeat_rider_db',
+        web: DriftWebOptions(
+          sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+          driftWorker: Uri.parse('drift_worker.js'),
+        ),
+      );
+    }
     return driftDatabase(name: 'animeat_rider_db');
   }
 
