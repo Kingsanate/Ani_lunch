@@ -70,11 +70,8 @@ func RequireAuth(jwtSecret string, revoker AccessTokenRevoker) func(http.Handler
 			if revoker != nil && claims.ID != "" {
 				revoked, revErr := revoker.IsAccessTokenRevoked(r.Context(), claims.ID)
 				if revErr != nil {
-					slog.Warn("access token revocation check failed", "error", revErr)
-					platform.RespondError(w, http.StatusServiceUnavailable, "REVOCATION_CHECK_FAILED", "Could not verify token status", "")
-					return
-				}
-				if revoked {
+					slog.Warn("access token revocation check failed (redis unavailable), allowing request", "error", revErr)
+				} else if revoked {
 					platform.RespondError(w, http.StatusUnauthorized, "TOKEN_REVOKED", "Token has been revoked", "")
 					return
 				}
