@@ -9,8 +9,9 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Copy all source files
 COPY . .
 
-# Build statically linked binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Ensure dependencies are tidy and build statically linked binary
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
     -o /app/server \
     ./cmd/server
