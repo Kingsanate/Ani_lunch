@@ -20,6 +20,7 @@ func NewHandler(db *database.Postgres) *Handler {
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/", h.Liveness)
 	r.Get("/live", h.Liveness)
 	r.Get("/ready", h.Readiness)
 	return r
