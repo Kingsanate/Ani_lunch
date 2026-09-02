@@ -20,9 +20,32 @@ func (h *Handler) Routes() chi.Router {
 
 	r.Get("/items", h.GetItems)
 	r.Get("/deals", h.GetDailyDeals)
+	r.Get("/daily_deals", h.GetDailyDeals)
 	r.Get("/menus", h.GetMenus)
+	r.Get("/meal_products", h.GetMealProducts)
+	r.Get("/app_settings", h.GetAppSettings)
 
 	return r
+}
+
+// GetMealProducts handles lunch thalis and meals.
+func (h *Handler) GetMealProducts(w http.ResponseWriter, r *http.Request) {
+	products, err := h.service.GetMealProducts(r.Context())
+	if err != nil {
+		platform.RespondError(w, http.StatusInternalServerError, "FETCH_MEALS_FAILED", err.Error(), "")
+		return
+	}
+	platform.RespondJSON(w, http.StatusOK, products)
+}
+
+// GetAppSettings handles global app configuration.
+func (h *Handler) GetAppSettings(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.service.GetAppSettings(r.Context())
+	if err != nil {
+		platform.RespondError(w, http.StatusInternalServerError, "FETCH_SETTINGS_FAILED", err.Error(), "")
+		return
+	}
+	platform.RespondJSON(w, http.StatusOK, settings)
 }
 
 // GetMenus handles menu / category listing.

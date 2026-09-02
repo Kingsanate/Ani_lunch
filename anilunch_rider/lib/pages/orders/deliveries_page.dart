@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:anilunch_core/anilunch_core.dart';
 import '../../models/order.dart';
 import '../../services/order_service.dart';
 import '../../core/cache/order_cache.dart';
+import '../../core/providers/api_provider.dart';
 import 'active_order_page.dart';
 
 class DeliveriesPage extends StatefulWidget {
@@ -19,20 +20,20 @@ class _DeliveriesPageState extends State<DeliveriesPage> with SingleTickerProvid
   late TabController _tabCtrl;
   List<OrderModel> _allOrders = [];
   bool _loading = true;
-  RealtimeChannel? _myOrdersChannel;
+  StreamSubscription<WsEvent>? _wsSub;
   StreamSubscription<List<OrderModel>>? _cacheSub;
+  Timer? _pollTimer;
 
-  String get _riderId => Supabase.instance.client.auth.currentUser?.id ?? '';
+  String get _riderId => AniApi.currentUserId ?? 'rdr-1';
 
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
-    // Cache-first: render whatever is in the local cache instantly, then
-    // refresh from the network in the background.
     _cacheSub = OrderCache.instance.watchMyOrders(_riderId).listen(_onCacheUpdate);
     _load();
     _listenToMyOrders();
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _loadSilently());
   }
 
   void _onCacheUpdate(List<OrderModel> orders) {
@@ -44,41 +45,43 @@ class _DeliveriesPageState extends State<DeliveriesPage> with SingleTickerProvid
   }
 
   void _listenToMyOrders() {
-    if (_riderId.isEmpty) return;
-    _myOrdersChannel = Supabase.instance.client
-        .channel('my_deliveries_$_riderId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'orders',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'rider_id',
-            value: _riderId,
-          ),
-          callback: (payload) {
-            _load(); // Reload orders when there's any change
-          },
-        )
-        .subscribe();
+    final realtime = AniApi.instance.realtime;
+    realtime.connect().then((_) {
+      realtime.join('rider:$_riderId');
+      realtime.join('riders.available');
+      _wsSub?.cancel();
+      _wsSub = realtime.events.listen((event) {
+        if (event.orderEvent != null && mounted) {
+          _loadSilently();
+        }
+      });
+    }).catchError((_) {});
   }
 
-Future<void> _load() async {
+  Future<void> _loadSilently() async {
+    try {
+      final orders = await OrderService.fetchMyOrders(_riderId);
+      await OrderCache.instance.cacheOrders(orders);
+      if (mounted) setState(() { _allOrders = orders; _loading = false; });
+    } catch (_) {}
+  }
+
+  Future<void> _load() async {
     setState(() => _loading = true);
     final orders = await OrderService.fetchMyOrders(_riderId);
     await OrderCache.instance.cacheOrders(orders);
     if (mounted) setState(() { _allOrders = orders; _loading = false; });
   }
 
-  List<OrderModel> get _active => _allOrders.where((o) => ['accepted', 'picked_up'].contains(o.status)).toList();
-  List<OrderModel> get _history => _allOrders.where((o) => o.status == 'delivered').toList();
+  List<OrderModel> get _active => _allOrders.where((o) => ['accepted', 'picked_up', 'assigned'].contains(o.status.toLowerCase())).toList();
+  List<OrderModel> get _history => _allOrders.where((o) => ['delivered', 'completed'].contains(o.status.toLowerCase())).toList();
 
   // ── Stats helpers ──────────────────────────────────────────────────────────
   List<OrderModel> _filterByPeriod(List<OrderModel> orders, String period) {
     final now = DateTime.now();
     return orders.where((o) {
       if (o.createdAt == null) return false;
-      final d = o.createdAt!;
+      final d = o.createdAt!.isUtc ? o.createdAt!.toLocal() : o.createdAt!;
       switch (period) {
         case 'today': return d.year == now.year && d.month == now.month && d.day == now.day;
         case 'week': return now.difference(d).inDays < 7;
@@ -88,11 +91,12 @@ Future<void> _load() async {
     }).toList();
   }
 
-@override
+  @override
   void dispose() { 
     _tabCtrl.dispose(); 
     _cacheSub?.cancel();
-    _myOrdersChannel?.unsubscribe();
+    _wsSub?.cancel();
+    _pollTimer?.cancel();
     super.dispose(); 
   }
 
@@ -370,6 +374,38 @@ Future<void> _load() async {
                         Text(timeLabel, style: GoogleFonts.inter(color: Colors.white24, fontSize: 11)),
                       ],
                     ),
+                    if (order.items.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                        ),
+                        child: Column(
+                          children: order.items.map((item) {
+                            final name = item['name']?.toString() ?? item['product_name']?.toString() ?? 'Item';
+                            final qty = item['quantity']?.toString() ?? '1';
+                            final imageUrl = item['image']?.toString() ?? item['image_url']?.toString();
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Row(
+                                children: [
+                                  _buildDishThumbnail(name, imageUrl, size: 28),
+                                  const SizedBox(width: 8),
+                                  Text('${qty}x', style: GoogleFonts.outfit(color: const Color(0xFFFF9100), fontSize: 11, fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(name, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
                     if (isActive) ...[
                       const SizedBox(height: 12),
                       GestureDetector(
@@ -399,6 +435,190 @@ Future<void> _load() async {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDishThumbnail(String name, String? imageUrl, {double size = 32}) {
+    final lower = name.toLowerCase();
+    String assetPath = 'assets/images/bento.png';
+    if (lower.contains('mizo')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('naga')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('khasi')) {
+      assetPath = 'assets/images/beef.png';
+    } else if (lower.contains('indian') || lower.contains('thali')) {
+      assetPath = 'assets/images/bento.png';
+    } else if (lower.contains('salad') || lower.contains('veg')) {
+      assetPath = 'assets/images/salad.png';
+    } else if (lower.contains('chicken') || lower.contains('biryani')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('pork') || lower.contains('mutton')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('beef') || lower.contains('meat')) {
+      assetPath = 'assets/images/beef.png';
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('assets/')) {
+      assetPath = imageUrl;
+    }
+
+    Widget imgWidget;
+    if (imageUrl != null && imageUrl.startsWith('http')) {
+      imgWidget = Image.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Image.asset(assetPath, width: size, height: size, fit: BoxFit.cover),
+      );
+    } else {
+      imgWidget = Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFF222222),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(LucideIcons.utensils, size: 16, color: Colors.white38),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _showDishImagePreview(name, imageUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: imgWidget,
+      ),
+    );
+  }
+
+  void _showDishImagePreview(String name, String? imageUrl) {
+    final lower = name.toLowerCase();
+    String assetPath = 'assets/images/bento.png';
+    if (lower.contains('mizo')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('naga')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('khasi')) {
+      assetPath = 'assets/images/beef.png';
+    } else if (lower.contains('indian') || lower.contains('thali')) {
+      assetPath = 'assets/images/bento.png';
+    } else if (lower.contains('salad') || lower.contains('veg')) {
+      assetPath = 'assets/images/salad.png';
+    } else if (lower.contains('chicken') || lower.contains('biryani')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('pork') || lower.contains('mutton')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('beef') || lower.contains('meat')) {
+      assetPath = 'assets/images/beef.png';
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('assets/')) {
+      assetPath = imageUrl;
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(LucideIcons.utensilsCrossed, color: Color(0xFFFF9100), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.pop(ctx),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 340, maxWidth: 360),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 3.5,
+                    child: (imageUrl != null && imageUrl.startsWith('http'))
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (c, e, s) => Image.asset(assetPath, fit: BoxFit.contain),
+                          )
+                        : Image.asset(assetPath, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.zoom_in_rounded, color: Colors.white54, size: 16),
+                    const SizedBox(width: 4),
+                    Text('Pinch to zoom • Tap to preview', style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

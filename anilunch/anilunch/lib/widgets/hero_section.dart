@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
+import '../core/providers/api_provider.dart';
 
 class HeroSection extends StatefulWidget {
   const HeroSection({super.key});
@@ -28,9 +28,12 @@ class _HeroSectionState extends State<HeroSection> {
 
   Future<void> _fetchHeroSettings() async {
     try {
-      final data = await Supabase.instance.client.from('app_settings').select().maybeSingle();
+      final data = await AniApi.instance.api.client.get<Map<String, dynamic>>(
+        '/api/v1/catalog/app_settings',
+        authenticated: false,
+      );
 
-      if (mounted && data != null) {
+      if (mounted) {
         setState(() {
           _showHeroBanner = data['show_hero_banner'] ?? true;
           if (data['hero_badge_text'] != null && data['hero_badge_text'].toString().isNotEmpty) {
@@ -48,7 +51,7 @@ class _HeroSectionState extends State<HeroSection> {
         });
       }
 
-      final url = data?['home_video_url']?.toString();
+      final url = data['home_video_url']?.toString();
 
       if (url != null && url.isNotEmpty) {
         _controller = VideoPlayerController.networkUrl(Uri.parse(url))

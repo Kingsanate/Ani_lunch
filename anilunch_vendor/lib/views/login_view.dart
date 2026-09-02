@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin_theme.dart';
 import '../core/providers/api_provider.dart';
 import 'mobile_vendor_shell.dart';
@@ -20,17 +19,15 @@ class _LoginViewState extends State<LoginView> {
   Future<void> _signIn() async {
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
+      await AniApi.instance.api.auth.login(
+        identifier: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      await AniApi.exchangeForSession();
+      await AniApi.onLoginSuccess();
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MobileVendorShell()));
-    } on AuthException catch (e) {
-      if (mounted) _showError(e.message);
     } catch (e) {
-      if (mounted) _showError('Unexpected error. Please try again.');
+      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

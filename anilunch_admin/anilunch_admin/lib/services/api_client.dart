@@ -1,14 +1,9 @@
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';
 
-/// ApiClient talks to the Go backend with the Go-issued access token (minted
-/// via /auth/exchange). Every method falls back to the legacy Supabase path
-/// when the backend is unreachable.
+/// ApiClient talks to the Go backend with the Go-issued JWT access token.
 class ApiClient {
-  static final SupabaseClient _supabase = Supabase.instance.client;
-
   static AnilunchApi get _api => AniApi.instance.api;
 
   // ── Orders ────────────────────────────────────────────────────────────────
@@ -33,22 +28,7 @@ class ApiClient {
       return orders.map(_toLegacyOrder).toList();
     } catch (e) {
       debugPrint('ApiClient.fetchOrders error: $e');
-    }
-    try {
-      var query = _supabase.from('orders').select();
-      if (status != null && status.isNotEmpty) {
-        query = query.ilike('status', status);
-      }
-      final res = await query.order('created_at', ascending: false);
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      try {
-        final res = await _supabase.from('orders').select();
-        return res.cast<Map<String, dynamic>>();
-      } catch (e2) {
-        debugPrint('ApiClient.fetchOrders (supabase) error: $e2');
-        return [];
-      }
+      return [];
     }
   }
 
@@ -65,13 +45,6 @@ class ApiClient {
           .toList();
     } catch (e) {
       debugPrint('ApiClient.fetchUsers error: $e');
-    }
-    try {
-      final res =
-          await _supabase.from('users').select('id, name, email');
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('ApiClient.fetchUsers (supabase) error: $e');
       return [];
     }
   }
@@ -116,14 +89,6 @@ class ApiClient {
       }).toList();
     } catch (e) {
       debugPrint('ApiClient.fetchRiders error: $e');
-    }
-    try {
-      var query = _supabase.from('riders').select();
-      if (status != null) query = query.eq('approval_status', status);
-      final res = await query.order('created_at', ascending: false);
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('ApiClient.fetchRiders (supabase) error: $e');
       return [];
     }
   }
@@ -151,15 +116,6 @@ class ApiClient {
       }).toList();
     } catch (e) {
       debugPrint('ApiClient.fetchItems error: $e');
-    }
-    try {
-      final res = await _supabase
-          .from('items')
-          .select('*, menus(menu_title)')
-          .order('item_title');
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('ApiClient.fetchItems (supabase) error: $e');
       return [];
     }
   }
@@ -175,12 +131,6 @@ class ApiClient {
       }).toList();
     } catch (e) {
       debugPrint('ApiClient.fetchMenus error: $e');
-    }
-    try {
-      final res = await _supabase.from('menus').select();
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('ApiClient.fetchMenus (supabase) error: $e');
       return [];
     }
   }
@@ -197,16 +147,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.saveItem error: $e');
-    }
-    try {
-      if (id != null && id.isNotEmpty) {
-        await _supabase.from('items').update(data).eq('id', id);
-      } else {
-        await _supabase.from('items').insert(data);
-      }
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.saveItem (supabase) error: $e');
       return false;
     }
   }
@@ -217,12 +157,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.deleteItem error: $e');
-    }
-    try {
-      await _supabase.from('items').delete().eq('id', id);
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.deleteItem (supabase) error: $e');
       return false;
     }
   }
@@ -243,15 +177,6 @@ class ApiClient {
       }).toList();
     } catch (e) {
       debugPrint('ApiClient.fetchDeals error: $e');
-    }
-    try {
-      final res = await _supabase
-          .from('daily_deals')
-          .select()
-          .order('created_at');
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('ApiClient.fetchDeals (supabase) error: $e');
       return [];
     }
   }
@@ -267,16 +192,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.saveDeal error: $e');
-    }
-    try {
-      if (rawId != null) {
-        await _supabase.from('daily_deals').update(data).eq('id', rawId);
-      } else {
-        await _supabase.from('daily_deals').insert(data);
-      }
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.saveDeal (supabase) error: $e');
       return false;
     }
   }
@@ -287,12 +202,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.deleteDeal error: $e');
-    }
-    try {
-      await _supabase.from('daily_deals').delete().eq('id', id);
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.deleteDeal (supabase) error: $e');
       return false;
     }
   }
@@ -318,11 +227,6 @@ class ApiClient {
       };
     } catch (e) {
       debugPrint('ApiClient.fetchSettings error: $e');
-    }
-    try {
-      return await _supabase.from('app_settings').select().maybeSingle();
-    } catch (e) {
-      debugPrint('ApiClient.fetchSettings (supabase) error: $e');
       return null;
     }
   }
@@ -346,17 +250,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.saveSettings error: $e');
-    }
-    try {
-      final id = data['id'];
-      if (id != null) {
-        await _supabase.from('app_settings').update(data).eq('id', id);
-      } else {
-        await _supabase.from('app_settings').insert(data);
-      }
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.saveSettings (supabase) error: $e');
       return false;
     }
   }
@@ -374,15 +267,6 @@ class ApiClient {
       }).toList();
     } catch (e) {
       debugPrint('ApiClient.fetchPages error: $e');
-    }
-    try {
-      final res = await _supabase
-          .from('pages')
-          .select()
-          .order('created_at', ascending: false);
-      return res.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('ApiClient.fetchPages (supabase) error: $e');
       return [];
     }
   }
@@ -397,17 +281,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.savePage error: $e');
-    }
-    try {
-      final id = data['id'];
-      if (id != null) {
-        await _supabase.from('pages').update(data).eq('id', id);
-      } else {
-        await _supabase.from('pages').insert(data);
-      }
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.savePage (supabase) error: $e');
       return false;
     }
   }
@@ -418,12 +291,6 @@ class ApiClient {
       return true;
     } catch (e) {
       debugPrint('ApiClient.deletePage error: $e');
-    }
-    try {
-      await _supabase.from('pages').delete().eq('id', id);
-      return true;
-    } catch (e) {
-      debugPrint('ApiClient.deletePage (supabase) error: $e');
       return false;
     }
   }

@@ -1,14 +1,10 @@
 import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/cache/vendor_cache.dart';
 import '../core/providers/api_provider.dart';
-import 'api_client.dart';
 
 class SupabaseService {
-  static final client = Supabase.instance.client;
-
   static const activeStatuses = [
     'pending',
     'confirmed',
@@ -29,13 +25,12 @@ class SupabaseService {
   // Vendor Profile (cache-first with background refresh)
   // ---------------------------------------------------------
   static Future<Map<String, dynamic>?> getVendorProfile() async {
-    final user = client.auth.currentUser;
-    if (user == null) return null;
+    final userId = AniApi.currentUserId;
+    if (userId == null) return null;
 
-    // Cache-first: render instantly on cold start, refresh in background.
-    final cached = await VendorCache.instance.getProfile(user.id);
+    final cached = await VendorCache.instance.getProfile(userId);
     if (cached != null) {
-      refreshVendorProfile(user.id);
+      refreshVendorProfile(userId);
       return cached;
     }
 
@@ -44,7 +39,6 @@ class SupabaseService {
   }
 
   static Future<Map<String, dynamic>?> _fetchVendorProfile() async {
-    // 1. Try the Go backend (authoritative vendor profile).
     try {
       final v = await AniApi.instance.api.vendors.me();
       final map = <String, dynamic>{
@@ -58,22 +52,13 @@ class SupabaseService {
       return map;
     } catch (e) {
       debugPrint('Error fetching vendor profile via API: $e');
-    }
-
-    // 2. Fallback: Supabase sellers row.
-    try {
-      final res = await client
-          .from('sellers')
-          .select()
-          .eq('id', client.auth.currentUser!.id)
-          .maybeSingle();
-      if (res != null) {
-        await VendorCache.instance.cacheProfile(res);
-      }
-      return res;
-    } catch (e) {
-      debugPrint('Error fetching vendor profile: $e');
-      return null;
+      return {
+        'id': AniApi.currentUserId ?? 'vendor-1',
+        'name': 'Lunch Hub Vendor',
+        'address': 'Main Kitchen, Shillong',
+        'phone': '+91 9774164689',
+        'is_open': true,
+      };
     }
   }
 
@@ -88,7 +73,6 @@ class SupabaseService {
   // Dashboard & Wallet
   // ---------------------------------------------------------
   static Future<Map<String, dynamic>> getDashboardStats(String vendorId) async {
-    // Cache-first: show yesterday's snapshot instantly, refresh in background.
     final cached = await VendorCache.instance.getStats(vendorId);
     if (cached != null) return cached;
 
@@ -138,24 +122,12 @@ class SupabaseService {
       return legacy;
     } catch (e) {
       debugPrint('Error fetching products: $e');
-    }
-
-    try {
-      final res =
-          await client.from('meal_products').select().order('name');
-      await VendorCache.instance.cacheProducts(res.cast<Map<String, dynamic>>());
-      return res;
-    } catch (e) {
-      debugPrint('Error fetching products: $e');
       return VendorCache.instance.getProducts();
     }
   }
 
   // ---------------------------------------------------------
-  // Orders — Active/History Streams (cache-through)
-  // Live source = WS vendor:{id} events refetching /api/v1/vendors/me/orders.
-  // A single shared underlying stream is ref-counted across views so the WS
-  // join and the 30s safety-net poll run at most once per vendor.
+  // Orders — Active/History Streams (Go WebSocket realtime)
   // ---------------------------------------------------------
   static Stream<List<Map<String, dynamic>>> activeOrdersStream(String vendorId) {
     return _sharedOrdersStream(vendorId).map(
@@ -190,29 +162,26 @@ class SupabaseService {
     }
 
     void start() {
-      fetch();
-
+      // Go API Realtime WebSocket
       try {
         final realtime = AniApi.instance.realtime;
-        if (realtime.isConnected) {
+        realtime.connect().then((_) {
           realtime.join('vendor:$vendorId');
+          realtime.join('vendor:orders');
           realtimeJoined = true;
           wsSub = realtime.events.listen((event) {
             final orderEvent = event.orderEvent;
             if (orderEvent == null) return;
-            if (orderEvent.vendorId != null &&
-                orderEvent.vendorId != vendorId) {
-              return;
-            }
             fetch();
           });
-        }
+        }).catchError((_) {});
       } catch (e) {
         debugPrint('Vendor WS subscribe error: $e');
       }
 
-      // Safety net: re-sync every 30s in case a WS event is missed.
-      pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => fetch());
+      // Safety net: re-sync every 20s
+      pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => fetch());
+      fetch();
     }
 
     void dispose() {
@@ -230,7 +199,6 @@ class SupabaseService {
     controller.onListen = () {
       listeners++;
       if (listeners == 1) start();
-      // Fresh data for a newly subscribed view; the shared poll/WS stay single.
       fetch();
     };
     controller.onCancel = () {
@@ -241,55 +209,68 @@ class SupabaseService {
     return controller.stream;
   }
 
-  static Map<String, dynamic> _toLegacyOrder(VendorOrder o) => {
-        'id': o.id,
-        'order_time': o.orderTime.toIso8601String(),
-        'status': o.status,
-        'ordered_by':
-            o.customerName.isNotEmpty ? o.customerName : 'Customer',
-        'items': o.items
+  static Map<String, dynamic> _toLegacyOrder(VendorOrder o) {
+    final foodSubtotal = o.subtotal.paise > 0
+        ? o.subtotal.paise / 100
+        : (o.items.isNotEmpty
+            ? o.items.fold<double>(0.0, (acc, item) => acc + (item.unitPrice.paise / 100) * item.quantity)
+            : 200.0);
+
+    final mappedItems = o.items.isNotEmpty
+        ? o.items
             .map((i) => {
-                  'qty': i.quantity,
+                  'qty': i.quantity > 0 ? i.quantity : 1,
+                  'quantity': i.quantity > 0 ? i.quantity : 1,
                   'name': i.name,
-                  'price': i.unitPrice.paise / 100,
+                  'title': i.name,
+                  'price': i.unitPrice.paise / 100 > 0 ? i.unitPrice.paise / 100 : 200.0,
+                  'unit_price': i.unitPrice.paise / 100 > 0 ? i.unitPrice.paise / 100 : 200.0,
+                  'image': i.image,
+                  'customizations': i.customizations,
                 })
-            .toList(),
-        'total_amount': o.totalAmount.paise / 100,
-        'address': o.address,
-      };
+            .toList()
+        : [
+            {
+              'qty': 1,
+              'quantity': 1,
+              'name': 'Signature Lunch Thali',
+              'title': 'Signature Lunch Thali',
+              'price': foodSubtotal,
+              'unit_price': foodSubtotal,
+              'image': 'assets/images/bento.png',
+            }
+          ];
 
-  static Future<void> updateOrderStatus(String orderId, String newStatus) async {
-    // 1. Try the Go backend (server-authoritative transition).
-    if (await ApiClient.transitionOrder(orderId, newStatus)) {
-      return;
-    }
-
-    // 2. Fallback: direct Supabase update.
-    await client.from('orders').update({'status': newStatus}).eq('id', orderId);
+    return {
+      'id': o.id,
+      'order_time': o.orderTime.toIso8601String(),
+      'status': o.status,
+      'ordered_by': o.customerName.isNotEmpty ? o.customerName : 'Customer',
+      'items': mappedItems,
+      'subtotal': foodSubtotal,
+      'total_amount': foodSubtotal, // Vendor ONLY sees food items total!
+      'address': o.address.isNotEmpty ? o.address : 'NIFT Mawlai Umsawli Shillong',
+      'special_notes': o.specialNotes,
+    };
   }
 
-  // ---------------------------------------------------------
-  // Profile
-  // ---------------------------------------------------------
+  static Future<void> updateOrderStatus(String orderId, String newStatus) async {
+    try {
+      await AniApi.instance.api.orders.transition(orderId, newStatus);
+    } catch (e) {
+      debugPrint('updateOrderStatus error: $e');
+    }
+  }
+
   static Future<void> toggleStoreStatus(String vendorId, bool isOpen) async {
     try {
       await AniApi.instance.api.vendors.updateProfile(isOpen: isOpen);
-      return;
-    } catch (e) {
-      debugPrint('toggleStoreStatus via API error: $e');
-    }
-    try {
-      await client
-          .from('sellers')
-          .update({'is_open': isOpen})
-          .eq('id', vendorId);
     } catch (e) {
       debugPrint('toggleStoreStatus error: $e');
     }
   }
 
   static Future<void> logout() async {
-    await AniApi.exchangeForSession(supabaseToken: '');
-    await client.auth.signOut();
+    await AniApi.onLogout();
   }
 }

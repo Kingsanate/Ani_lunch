@@ -17,7 +17,7 @@ class CategoryOptionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> displayProducts = categoryId == 'all'
+    final List<Map<String, dynamic>> displayProducts = categoryId == 'all'
         ? allCategoryData.values.expand((e) => e).toList()
         : allCategoryData[categoryId] ?? [];
 
@@ -136,6 +136,12 @@ class CategoryOptionsSection extends StatelessWidget {
         errorWidget: (context, url, error) => Image.asset('assets/images/bento.png', width: 100, height: 100, fit: BoxFit.cover),
       );
     }
-    return Image.asset(imagePath, width: 100, height: 100, fit: BoxFit.cover);
+    return Image.asset(
+      imagePath,
+      width: 100,
+      height: 100,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Image.asset('assets/images/bento.png', width: 100, height: 100, fit: BoxFit.cover),
+    );
   }
 }

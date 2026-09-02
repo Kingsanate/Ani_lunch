@@ -1,5 +1,6 @@
 import 'admin_api.dart';
 import 'api_client.dart';
+import 'auth_api.dart';
 import 'catalog_api.dart';
 import 'orders_api.dart';
 import 'riders_api.dart';
@@ -13,6 +14,7 @@ class AnilunchApi {
   final ApiClient client;
   final TokenManager tokens;
 
+  late final AuthApi auth;
   late final CatalogApi catalog;
   late final OrdersApi orders;
   late final UsersApi users;
@@ -22,7 +24,8 @@ class AnilunchApi {
   late final AdminApi admin;
 
   AnilunchApi({required this.client, required this.tokens})
-      : catalog = CatalogApi(client),
+      : auth = AuthApi(client),
+        catalog = CatalogApi(client),
         orders = OrdersApi(client),
         users = UsersApi(client),
         riders = RidersApi(client),

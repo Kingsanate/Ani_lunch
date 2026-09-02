@@ -173,6 +173,7 @@ func main() {
 	realtimeHub := realtime.NewHub(nil)
 	realtimeGateway := realtime.NewGateway(realtimeHub, cfg.JWTSecret, pg)
 	realtimeHub.AttachAuthorizer(realtimeGateway.AuthorizeChannel)
+	platform.GlobalStore.SetHub(realtimeHub)
 	var natsConn *nats.Conn
 	if natsClient != nil {
 		natsConn = natsClient.Conn
@@ -198,15 +199,18 @@ func main() {
 		// Realtime WebSocket (token auth handled inside the gateway)
 		v1.Get("/ws", realtimeGateway.HandleWS)
 
-		// Auth token exchange (Supabase JWT -> Go short-lived tokens)
+		// Native auth endpoints
+		v1.Post("/auth/register", authHandler.Routes()["POST /api/v1/auth/register"])
+		v1.Post("/auth/login", authHandler.Routes()["POST /api/v1/auth/login"])
 		v1.Post("/auth/exchange", authHandler.Routes()["POST /api/v1/auth/exchange"])
 		v1.Post("/auth/refresh", authHandler.Routes()["POST /api/v1/auth/refresh"])
 
 		// Protected endpoints with rate limiting
 		v1.Group(func(protected chi.Router) {
 			protected.Use(middleware.RequireAuth(cfg.JWTSecret, authService.Denylist()))
-			protected.Use(rateLimiter.Limit(30, 1*time.Minute))
+			protected.Use(rateLimiter.Limit(300, 1*time.Minute))
 
+			protected.Get("/auth/me", authHandler.Routes()["GET /api/v1/auth/me"])
 			protected.Mount("/users", usersHandler.Routes())
 			protected.Mount("/orders", ordersHandler.Routes())
 			protected.Mount("/riders", ridersHandler.Routes())

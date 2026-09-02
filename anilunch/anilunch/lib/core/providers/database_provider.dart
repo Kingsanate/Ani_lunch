@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/app_database.dart';
 import '../sync/sync_engine.dart';
 
@@ -13,8 +12,7 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 // syncEngineProvider exposes the sync coordinator and manages its lifecycle.
 final syncEngineProvider = Provider<SyncEngine>((ref) {
   final db = ref.watch(appDatabaseProvider);
-  final supabase = Supabase.instance.client;
-  final engine = SyncEngine(db: db, supabase: supabase);
+  final engine = SyncEngine(db: db);
 
   // Automatically start background sync
   engine.startPeriodicSync();

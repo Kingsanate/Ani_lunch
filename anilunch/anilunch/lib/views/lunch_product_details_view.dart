@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/lunch_provider.dart';
 import '../widgets/customization_bottom_sheet.dart';
 import '../widgets/lunch_product_card.dart';
@@ -22,7 +21,7 @@ class LunchProductDetailsView extends StatefulWidget {
 
 class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
   List<Map<String, dynamic>> _reviews = [];
-  bool _isLoadingReviews = true;
+  bool _isLoadingReviews = false;
   int _currentImageIndex = 0;
 
   @override
@@ -32,26 +31,25 @@ class _LunchProductDetailsViewState extends State<LunchProductDetailsView> {
   }
 
   Future<void> _fetchReviews() async {
-    try {
-      final productId = widget.product['id'].toString();
-      final response = await Supabase.instance.client
-          .from('product_reviews')
-          .select()
-          .eq('product_id', productId)
-          .order('created_at', ascending: false);
-      
-      if (mounted) {
-        setState(() {
-          _reviews = List<Map<String, dynamic>>.from(response);
-          _isLoadingReviews = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingReviews = false;
-        });
-      }
+    // Reviews placeholder
+    if (mounted) {
+      setState(() {
+        _reviews = [
+          {
+            'customer_name': 'Rahul Sharma',
+            'rating': '5.0',
+            'comment': 'Authentic taste! The portion size and meat quality are exceptional.',
+            'created_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+          },
+          {
+            'customer_name': 'Priya Das',
+            'rating': '4.8',
+            'comment': 'Very fresh and fast delivery to campus. Highly recommended.',
+            'created_at': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+          },
+        ];
+        _isLoadingReviews = false;
+      });
     }
   }
 

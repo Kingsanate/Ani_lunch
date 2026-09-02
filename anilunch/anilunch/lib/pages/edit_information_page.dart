@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/providers/api_provider.dart';
 
 class EditInformationPage extends StatefulWidget {
   const EditInformationPage({super.key});
@@ -39,31 +40,18 @@ class _EditInformationPageState extends State<EditInformationPage> {
   }
 
   Future<void> _fetchProfile() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-    if (mounted) {
-      setState(() {
-        _nameController.text = user.userMetadata?['full_name']?.toString() ?? user.userMetadata?['name']?.toString() ?? '';
-        _emailController.text = user.email ?? '';
-        _phoneController.text = user.userMetadata?['phone_number']?.toString() ?? user.userMetadata?['phone']?.toString() ?? '';
-        _addressController.text = user.userMetadata?['address']?.toString() ?? '';
-        _pincodeController.text = user.userMetadata?['pin_code']?.toString() ?? '';
-        _existingImageUrl = user.userMetadata?['avatar_url']?.toString() ?? user.userMetadata?['profile_image_url']?.toString();
-      });
-    }
     try {
-      final data = await Supabase.instance.client.from('users').select().eq('user_id', user.id).maybeSingle();
-      if (data != null && mounted) {
-        setState(() {
-          if ((data['name'] ?? '').toString().isNotEmpty) _nameController.text = data['name'].toString();
-          if ((data['email'] ?? '').toString().isNotEmpty) _emailController.text = data['email'].toString();
-          final phoneVal = data['phone'] ?? data['phone_number'];
-          if ((phoneVal ?? '').toString().isNotEmpty) _phoneController.text = phoneVal.toString();
-          if ((data['address'] ?? '').toString().isNotEmpty) _addressController.text = data['address'].toString();
-          if ((data['pin_code'] ?? '').toString().isNotEmpty) _pincodeController.text = data['pin_code'].toString();
-          final imgVal = data['profile_image_url'] ?? data['avatar_url'];
-          _existingImageUrl = (imgVal != null && imgVal.toString().isNotEmpty) ? imgVal.toString() : null;
-        });
+      if (AniApi.isLoggedIn) {
+        final data = await AniApi.instance.api.users.me();
+        if (mounted) {
+          setState(() {
+            _nameController.text = data.name;
+            _emailController.text = data.email;
+            _phoneController.text = data.phone;
+            _addressController.text = data.address;
+            _existingImageUrl = data.avatarUrl;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Profile fetch notice: $e');
@@ -104,101 +92,23 @@ class _EditInformationPageState extends State<EditInformationPage> {
 
   Future<void> _saveCredentials() async {
     if (!_formKey.currentState!.validate()) return;
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
     setState(() => _isSaving = true);
     try {
       String? finalImageUrl = _existingImageUrl;
       if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
-        String? storageUrl;
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final newFilename = '$timestamp.jpg';
-        final newPath = 'profiles/${user.id}/$newFilename';
-        try {
-          // 1. Upload new image
-          await Supabase.instance.client.storage.from('users').uploadBinary(
-            newPath,
-            _pickedBytes!,
-            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-          );
-          storageUrl = Supabase.instance.client.storage.from('users').getPublicUrl(newPath);
-          debugPrint('Storage upload SUCCESS: $storageUrl');
-
-          // 2. Permanently delete any previous profile photos for this user to keep storage clean
-          try {
-            final oldFiles = await Supabase.instance.client.storage
-                .from('users')
-                .list(path: 'profiles/${user.id}');
-            final filesToDelete = oldFiles
-                .where((f) => f.name != newFilename)
-                .map((f) => 'profiles/${user.id}/${f.name}')
-                .toList();
-            if (filesToDelete.isNotEmpty) {
-              await Supabase.instance.client.storage.from('users').remove(filesToDelete);
-              debugPrint('Cleaned up ${filesToDelete.length} old profile photo(s) from storage');
-            }
-          } catch (cleanupErr) {
-            debugPrint('Old avatar cleanup notice: $cleanupErr');
-          }
-        } catch (e) {
-          debugPrint('Storage upload error: $e');
-        }
-        finalImageUrl = (storageUrl != null && storageUrl.isNotEmpty)
-            ? storageUrl
-            : 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
+        finalImageUrl = 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
       }
 
       final name = _nameController.text.trim();
       final phone = _phoneController.text.trim();
       final address = _addressController.text.trim();
-      final pincode = _pincodeController.text.trim();
-      final email = _emailController.text.trim();
 
-      // 1. Update Supabase Auth User Metadata
-      try {
-        await Supabase.instance.client.auth.updateUser(UserAttributes(data: {
-          'full_name': name,
-          'name': name,
-          'phone_number': phone,
-          'phone': phone,
-          'address': address,
-          'pin_code': pincode,
-          if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
-          if (finalImageUrl != null) 'avatar_url': finalImageUrl,
-        }));
-      } catch (e) {
-        debugPrint('Auth metadata notice: $e');
-      }
-
-      // 2. Update public.users database table using primary key 'id'
-      try {
-        await Supabase.instance.client.from('users').upsert({
-          'id': user.id,
-          'user_id': user.id,
-          'name': name,
-          'email': email,
-          'phone_number': phone,
-          'address': address,
-          'pin_code': pincode,
-          if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
-        }, onConflict: 'id');
-        debugPrint('DB upsert OK');
-      } catch (e) {
-        debugPrint('DB upsert notice: $e');
-        try {
-          await Supabase.instance.client.from('users').update({
-            'name': name,
-            'email': email,
-            'phone_number': phone,
-            'address': address,
-            'pin_code': pincode,
-            if (finalImageUrl != null) 'profile_image_url': finalImageUrl,
-          }).eq('user_id', user.id);
-          debugPrint('DB update fallback OK');
-        } catch (e2) {
-          debugPrint('DB update fallback notice: $e2');
-        }
-      }
+      await AniApi.instance.api.users.updateProfile(UpdateProfileRequest(
+        name: name,
+        phone: phone,
+        address: address,
+        avatarUrl: finalImageUrl,
+      ));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

@@ -12,6 +12,7 @@ export 'src/api/users_api.dart';
 export 'src/api/riders_api.dart';
 export 'src/api/vendors_api.dart';
 export 'src/api/admin_api.dart';
+export 'src/api/auth_api.dart';
 export 'src/models/catalog.dart';
 export 'src/models/order.dart';
 export 'src/models/user.dart';

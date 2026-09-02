@@ -55,3 +55,29 @@ type Coupon struct {
 	ValidUntil     time.Time      `json:"valid_until"`
 	IsActive       bool           `json:"is_active"`
 }
+
+// MealProduct represents lunch thalis and meals.
+type MealProduct struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	Price         float64   `json:"price"`
+	DiscountPrice *float64  `json:"discount_price,omitempty"`
+	Rating        float64   `json:"rating"`
+	ImageURL      string    `json:"image_url"`
+	IsAvailable   bool      `json:"is_available"`
+	RiceOptions   []string  `json:"rice_options"`
+	MeatOptions   []string  `json:"meat_options"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// AppSettings represents global platform settings.
+type AppSettings struct {
+	ID                    string `json:"id"`
+	AppName               string `json:"app_name"`
+	ContactEmail          string `json:"contact_email"`
+	ContactPhone          string `json:"contact_phone"`
+	DeliveryFee           int64  `json:"delivery_fee"`
+	FreeDeliveryThreshold int64  `json:"free_delivery_threshold"`
+	IsStoreOpen           bool   `json:"is_store_open"`
+}

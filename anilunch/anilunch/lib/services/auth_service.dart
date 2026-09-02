@@ -1,12 +1,7 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/providers/api_provider.dart';
 
 class AuthService {
-  final SupabaseClient _client;
-
-  AuthService({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
-
-  Future<void> signUp({
+  Future<Map<String, dynamic>> signUp({
     required String email,
     required String password,
     required String name,
@@ -14,43 +9,33 @@ class AuthService {
     required String address,
     required String pinCode,
   }) async {
-    final res = await _client.auth.signUp(
+    final res = await AniApi.instance.api.auth.register(
       email: email,
+      phone: phone,
+      name: name,
       password: password,
-      data: {
-        'full_name': name,
-        'phone_number': phone,
-        'address': address,
-      },
+      role: 'customer',
     );
-    if (res.user != null) {
-      await _client.from('users').insert({
-        'id': res.user!.id,
-        'user_id': res.user!.id,
-        'name': name,
-        'email': email,
-        'phone_number': phone,
-        'address': address,
-        'pin_code': pinCode,
-      });
-    }
+    await AniApi.onLoginSuccess();
+    return res;
   }
 
-  Future<void> signIn({
+  Future<Map<String, dynamic>> signIn({
     required String email,
     required String password,
   }) async {
-    await _client.auth.signInWithPassword(
-      email: email,
+    final res = await AniApi.instance.api.auth.login(
+      identifier: email,
       password: password,
     );
+    await AniApi.onLoginSuccess();
+    return res;
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await AniApi.onLogout();
   }
 
-  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
-
-  User? get currentUser => _client.auth.currentUser;
+  bool get isLoggedIn => AniApi.isLoggedIn;
+  String? get currentUserId => AniApi.currentUserId;
 }

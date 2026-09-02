@@ -66,4 +66,5 @@ app.*.map.json
 bin/
 dist/
 *.exe
+*.exe~
 *.test

@@ -1,0 +1,44 @@
+﻿# Caddy Production Reverse Proxy & Web Server
+
+# Replace with your actual domain or VPS IP
+{
+    email admin@anilunch.app
+}
+
+# 1. API & Realtime WebSockets
+api.{} {
+    reverse_proxy api:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# 2. Customer Web App
+lunch.{} {
+    root * /var/www/html/customer
+    file_server
+    try_files {path} /index.html
+}
+
+# 3. Vendor Kitchen App
+vendor.{} {
+    root * /var/www/html/vendor
+    file_server
+    try_files {path} /index.html
+}
+
+# 4. Rider Radar App
+rider.{} {
+    root * /var/www/html/rider
+    file_server
+    try_files {path} /index.html
+}
+
+# 5. Admin Master Console
+admin.{} {
+    root * /var/www/html/admin
+    file_server
+    try_files {path} /index.html
+}

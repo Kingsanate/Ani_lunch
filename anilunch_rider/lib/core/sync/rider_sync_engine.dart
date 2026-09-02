@@ -37,7 +37,7 @@ class RiderSyncEngine {
 
   Future<void> syncNow() async {
     final db = _db;
-    final uid = AuthService.currentUser?.id;
+    final uid = AuthService.currentUserId;
     if (db == null || uid == null || _isSyncing) return;
     _isSyncing = true;
     try {

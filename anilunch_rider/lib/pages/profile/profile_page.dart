@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/providers/api_provider.dart';
 import '../../models/rider.dart';
 import '../../services/auth_service.dart';
 import '../../services/order_service.dart';
@@ -22,7 +22,7 @@ class _ProfilePageState extends State<ProfilePage> {
   int _todayDeliveries = 0;
   double _todayEarnings = 0;
 
-  String get _riderId => Supabase.instance.client.auth.currentUser?.id ?? '';
+  String get _riderId => AniApi.currentUserId ?? '';
 
   @override
   void initState() {

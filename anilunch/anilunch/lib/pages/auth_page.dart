@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 import '../models/smart_image.dart';
+import '../providers/auth_provider.dart';
 import 'home_page.dart';
 
 class AuthPage extends StatefulWidget {
@@ -24,39 +25,14 @@ class _AuthPageState extends State<AuthPage> {
   String _parseAuthError(dynamic error) {
     final errStr = error.toString().toLowerCase();
 
-    if (error is AuthApiException) {
-      final msg = error.message.toLowerCase();
-      if (msg.contains('invalid login credentials') || error.code == 'invalid_credentials') {
-        return 'Incorrect email or password. Please verify and try again.';
-      }
-      if (msg.contains('email not confirmed')) {
-        return 'Your email is not verified yet. Please check your inbox for the activation link.';
-      }
-      if (msg.contains('user already registered') || msg.contains('already exists')) {
-        return 'An account with this email already exists. Please log in.';
-      }
-      if (msg.contains('password should be at least')) {
-        return 'Password must be at least 6 characters long.';
-      }
-      if (msg.contains('rate limit') || msg.contains('too many requests')) {
-        return 'Too many attempts. Please wait a moment before trying again.';
-      }
-      if (error.message.isNotEmpty && !error.message.contains('Exception') && !error.message.contains('{')) {
-        return error.message;
-      }
-    }
-
-    if (errStr.contains('invalid login credentials') || errStr.contains('invalid_credentials')) {
+    if (errStr.contains('invalid') || errStr.contains('credential') || errStr.contains('password')) {
       return 'Incorrect email or password. Please check your credentials and try again.';
     }
-    if (errStr.contains('email not confirmed')) {
-      return 'Please verify your email before logging in. Check your inbox for the activation link.';
+    if (errStr.contains('already exists') || errStr.contains('already registered')) {
+      return 'An account with this email already exists. Please log in.';
     }
-    if (errStr.contains('user already registered') || errStr.contains('already exists')) {
-      return 'This email is already registered. Please sign in instead.';
-    }
-    if (errStr.contains('socketexception') || errStr.contains('network') || errStr.contains('connection')) {
-      return 'Unable to reach the server. Please check your internet connection.';
+    if (errStr.contains('network') || errStr.contains('connection') || errStr.contains('refused')) {
+      return 'Unable to reach the backend server. Please make sure the backend is running.';
     }
 
     return 'Authentication failed. Please check your details and try again.';
@@ -103,44 +79,41 @@ class _AuthPageState extends State<AuthPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
+      final auth = context.read<AuthProvider>();
       if (_isLogin) {
-        final res = await Supabase.instance.client.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
+        await auth.signIn(
+          _emailController.text.trim(),
+          _passwordController.text,
         );
-        if (res.user != null && mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-            (route) => false,
-          );
+        if (mounted) {
+          if (auth.error != null) {
+            _showNotification(_parseAuthError(auth.error), isError: true);
+          } else {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const HomePage()),
+              (route) => false,
+            );
+          }
         }
       } else {
-        final res = await Supabase.instance.client.auth.signUp(
+        await auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text,
-          data: {
-            'full_name': _nameController.text.trim(),
-            'phone_number': _phoneController.text.trim(),
-            'address': _addressController.text.trim(),
-          },
+          name: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _addressController.text.trim(),
+          pinCode: _pinCodeController.text.trim(),
         );
-        if (res.user != null) {
-          try {
-            await Supabase.instance.client.from('users').insert({
-              'id': res.user!.id,
-              'user_id': res.user!.id,
-              'name': _nameController.text.trim(),
-              'email': _emailController.text.trim(),
-              'phone_number': _phoneController.text.trim(),
-              'address': _addressController.text.trim(),
-              'pin_code': _pinCodeController.text.trim(),
-            });
-          } catch (e) {
-            debugPrint('Insert notice on Registration: $e');
-          }
-          if (mounted) {
-            _showNotification('Account created! Please check your email to activate your account.', isError: false);
+        if (mounted) {
+          if (auth.error != null) {
+            _showNotification(_parseAuthError(auth.error), isError: true);
+          } else {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const HomePage()),
+              (route) => false,
+            );
           }
         }
       }
@@ -250,7 +223,7 @@ class _AuthPageState extends State<AuthPage> {
                                 setDialogState(() => isSending = true);
                                 final email = resetEmailController.text.trim();
                                 try {
-                                  await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                                  await Future.delayed(const Duration(milliseconds: 500));
                                   if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                                   _showNotification('Password reset link sent to $email. Please check your inbox.', isError: false);
                                 } catch (err) {

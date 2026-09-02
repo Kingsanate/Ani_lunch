@@ -43,6 +43,8 @@ class VendorOrderItem {
   final int quantity;
   final Money unitPrice;
   final Money subtotal;
+  final String? image;
+  final Map<String, String>? customizations;
 
   const VendorOrderItem({
     required this.id,
@@ -51,16 +53,27 @@ class VendorOrderItem {
     required this.quantity,
     required this.unitPrice,
     required this.subtotal,
+    this.image,
+    this.customizations,
   });
 
-  factory VendorOrderItem.fromJson(Map<String, dynamic> json) => VendorOrderItem(
-        id: str(json, 'id'),
-        itemId: str(json, 'item_id'),
-        name: str(json, 'name'),
-        quantity: intOf(json, 'quantity'),
-        unitPrice: Money.fromJson(json['unit_price']),
-        subtotal: Money.fromJson(json['subtotal']),
-      );
+  factory VendorOrderItem.fromJson(Map<String, dynamic> json) {
+    Map<String, String>? customizations;
+    if (json['customizations'] is Map) {
+      customizations = (json['customizations'] as Map)
+          .map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+    return VendorOrderItem(
+      id: str(json, 'id'),
+      itemId: str(json, 'item_id'),
+      name: str(json, 'name'),
+      quantity: intOf(json, 'quantity'),
+      unitPrice: Money.fromJson(json['unit_price']),
+      subtotal: Money.fromJson(json['subtotal']),
+      image: optStr(json, 'image'),
+      customizations: customizations,
+    );
+  }
 }
 
 class VendorOrder {

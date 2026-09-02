@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class CartItemDetailsDialog extends StatelessWidget {
   final String title;
@@ -46,9 +45,36 @@ class CartItemDetailsDialog extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: imageUrl != null && imageUrl!.isNotEmpty
-                      ? CachedNetworkImage(imageUrl: imageUrl!, width: 70, height: 70, fit: BoxFit.cover)
-                      : Container(width: 70, height: 70, color: Colors.grey[100], child: const Icon(Icons.fastfood, color: Colors.grey, size: 30)),
+                  child: SizedBox(
+                    width: 70,
+                    height: 70,
+                    child: () {
+                      if (imageUrl != null && imageUrl!.startsWith('assets/')) {
+                        return Image.asset(
+                          imageUrl!,
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => Image.asset('assets/images/bento.png', fit: BoxFit.cover),
+                        );
+                      }
+                      if (imageUrl != null && imageUrl!.startsWith('http')) {
+                        return Image.network(
+                          imageUrl!,
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => Image.asset('assets/images/bento.png', fit: BoxFit.cover),
+                        );
+                      }
+                      return Container(
+                        width: 70,
+                        height: 70,
+                        color: Colors.grey[100],
+                        child: const Icon(Icons.fastfood, color: Colors.grey, size: 30),
+                      );
+                    }(),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

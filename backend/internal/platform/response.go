@@ -8,7 +8,7 @@ import (
 // StandardResponse wraps all API outputs in a unified JSON envelope.
 type StandardResponse struct {
 	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
+	Data    interface{} `json:"data"`
 	Error   *APIError   `json:"error,omitempty"`
 	Meta    interface{} `json:"meta,omitempty"`
 }

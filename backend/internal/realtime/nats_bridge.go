@@ -68,21 +68,29 @@ func (b *Bridge) routeOrderEvent(data []byte) {
 		return
 	}
 
+	// Customer tracking channel
 	b.publish(ChannelOrder+":"+ev.OrderID, data)
 
-	// Admin console sees every lifecycle event.
+	// Admin console channels
 	b.publish(ChannelAdmin, data)
+	b.publish("admin.orders", data)
 
-	if ev.RiderID != nil && *ev.RiderID != "" {
-		b.publish(ChannelRider+":"+*ev.RiderID, data)
-	}
+	// Vendor app channels
+	b.publish("vendor:orders", data)
+	b.publish("vendor", data)
 	if ev.VendorID != nil && *ev.VendorID != "" {
 		b.publish(ChannelVendor+":"+*ev.VendorID, data)
+	}
+
+	// Rider app channels
+	if ev.RiderID != nil && *ev.RiderID != "" {
+		b.publish(ChannelRider+":"+*ev.RiderID, data)
 	}
 
 	// Broadcast ready_for_pickup to all online riders (unassigned only).
 	if ev.Status == "ready_for_pickup" && (ev.RiderID == nil || *ev.RiderID == "") {
 		b.publish(ChannelRiderBroadcast, data)
+		b.publish("rider:available", data)
 	}
 }
 

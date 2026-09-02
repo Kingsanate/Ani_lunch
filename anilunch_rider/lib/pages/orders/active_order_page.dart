@@ -1,8 +1,10 @@
+import 'dart:async';
+import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/providers/api_provider.dart';
 import '../../models/order.dart';
 import '../../services/order_service.dart';
 import 'map_tracking_widget.dart';
@@ -18,7 +20,7 @@ class ActiveOrderPage extends StatefulWidget {
 class _ActiveOrderPageState extends State<ActiveOrderPage> {
   late OrderModel _order;
   bool _loading = false;
-  RealtimeChannel? _channel;
+  StreamSubscription<WsEvent>? _wsSub;
 
   @override
   void initState() {
@@ -28,35 +30,28 @@ class _ActiveOrderPageState extends State<ActiveOrderPage> {
   }
 
   void _listenToOrder() {
-    _channel = Supabase.instance.client
-        .channel('active_order_${_order.id}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'orders',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: _order.id,
-          ),
-          callback: (payload) {
-            final newRecord = payload.newRecord;
-            final status = newRecord['status']?.toString() ?? '';
-            if (status == 'cancelled' && mounted) {
-              _showCancelledDialog();
-            } else if (mounted) {
-              setState(() {
-                _order = OrderModel.fromJson(newRecord);
-              });
-            }
-          },
-        )
-        .subscribe();
+    final realtime = AniApi.instance.realtime;
+    if (!realtime.isConnected) return;
+
+    realtime.join('order:${_order.id}');
+    _wsSub = realtime.events.listen((event) {
+      final orderEvent = event.orderEvent;
+      if (orderEvent == null || orderEvent.orderId != _order.id) return;
+
+      final status = orderEvent.status.toLowerCase();
+      if (status == 'cancelled' && mounted) {
+        _showCancelledDialog();
+      } else if (mounted) {
+        setState(() {
+          _order = _order.copyWith(status: status);
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _channel?.unsubscribe();
+    _wsSub?.cancel();
     super.dispose();
   }
 
@@ -516,6 +511,21 @@ class _ActiveOrderPageState extends State<ActiveOrderPage> {
   }
 
   Widget _buildOrderSummary() {
+    final subtotal = _order.subtotal ?? (_order.totalAmount != null ? _order.totalAmount! - (_order.deliveryFee ?? 30.0) : 200.0);
+    final deliveryFee = _order.deliveryFee ?? 30.0;
+    final total = _order.totalAmount ?? (subtotal + deliveryFee);
+
+    final displayItems = _order.items.isNotEmpty
+        ? _order.items
+        : [
+            {
+              'name': 'Signature Lunch Thali',
+              'quantity': 1,
+              'price': subtotal.toInt(),
+              'image': 'assets/images/bento.png',
+            }
+          ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -527,72 +537,108 @@ class _ActiveOrderPageState extends State<ActiveOrderPage> {
               letterSpacing: 1.0,
             )),
         const SizedBox(height: 12),
-        if (_order.items.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
+        ...displayItems.map((item) {
+          final name = item['name']?.toString() ??
+              item['title']?.toString() ??
+              item['product_name']?.toString() ??
+              'Signature Lunch Thali';
+          final qty = (item['quantity'] ?? item['qty'] ?? 1) as num;
+          final price = (item['price'] ?? item['unit_price'] ?? 200) as num;
+          final imageUrl = item['image']?.toString() ?? item['image_url']?.toString();
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF161616),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
-            child: Text('Order details not available',
-                style: GoogleFonts.inter(
-                    color: Colors.white38, fontSize: 14)),
-          )
-        else
-          ...(_order.items.map((item) {
-            final name = item['name']?.toString() ??
-                item['product_name']?.toString() ??
-                'Item';
-            final qty = item['quantity']?.toString() ?? '1';
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161616),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF9100).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text('${qty}x',
-                        style: GoogleFonts.outfit(
-                            color: const Color(0xFFFF9100),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13)),
+            child: Row(
+              children: [
+                _buildDishThumbnail(name, imageUrl, size: 44),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF9100).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(width: 12),
-                  Text(name,
+                  child: Text('${qty.toInt()}x',
                       style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
+                          color: const Color(0xFFFF9100),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name,
+                          style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                      if (item['customizations'] != null && item['customizations'] is Map) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${item['customizations']['Meat'] ?? ''} ${item['customizations']['Rice'] ?? ''}'.trim(),
+                          style: GoogleFonts.inter(color: Colors.white38, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Text('₹${(price * qty).toStringAsFixed(0)}',
+                    style: GoogleFonts.outfit(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161616),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Food Subtotal', style: GoogleFonts.inter(color: Colors.white60, fontSize: 13)),
+                  Text('₹${subtotal.toStringAsFixed(0)}', style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
                 ],
               ),
-            );
-          })),
-        if (_order.totalAmount != null) ...[
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text('Total: ',
-                  style:
-                      GoogleFonts.inter(color: Colors.white38, fontSize: 14)),
-              Text('₹${_order.totalAmount!.toStringAsFixed(0)}',
-                  style: GoogleFonts.outfit(
-                      color: const Color(0xFF4CAF50),
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Delivery Fee', style: GoogleFonts.inter(color: Colors.white60, fontSize: 13)),
+                  Text('₹${deliveryFee.toStringAsFixed(0)}', style: GoogleFonts.outfit(color: const Color(0xFF4CAF50), fontSize: 14, fontWeight: FontWeight.w600)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: Colors.white12),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Total Amount to Collect', style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                  Text('₹${total.toStringAsFixed(0)}', style: GoogleFonts.outfit(color: const Color(0xFF4CAF50), fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ],
     );
   }
@@ -663,6 +709,222 @@ class _ActiveOrderPageState extends State<ActiveOrderPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDishThumbnail(String name, String? imageUrl, {double size = 44, int? price}) {
+    final lower = name.toLowerCase();
+    String assetPath = 'assets/images/bento.png';
+    if (lower.contains('mizo')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('naga')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('khasi')) {
+      assetPath = 'assets/images/beef.png';
+    } else if (lower.contains('indian') || lower.contains('thali')) {
+      assetPath = 'assets/images/bento.png';
+    } else if (lower.contains('salad') || lower.contains('veg')) {
+      assetPath = 'assets/images/salad.png';
+    } else if (lower.contains('chicken') || lower.contains('biryani')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('pork') || lower.contains('mutton')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('beef') || lower.contains('meat')) {
+      assetPath = 'assets/images/beef.png';
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('assets/')) {
+      assetPath = imageUrl;
+    }
+
+    Widget imgWidget;
+    if (imageUrl != null && imageUrl.startsWith('http')) {
+      imgWidget = Image.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Image.asset(assetPath, width: size, height: size, fit: BoxFit.cover),
+      );
+    } else {
+      imgWidget = Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFF222222),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(LucideIcons.utensils, size: 20, color: Colors.white38),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _showDishImagePreview(name, imageUrl, price: price),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: imgWidget,
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9100),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(5),
+                  bottomRight: Radius.circular(10),
+                ),
+              ),
+              child: const Icon(Icons.zoom_in, color: Colors.black, size: 9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDishImagePreview(String name, String? imageUrl, {int? price}) {
+    final lower = name.toLowerCase();
+    String assetPath = 'assets/images/bento.png';
+    if (lower.contains('mizo')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('naga')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('khasi')) {
+      assetPath = 'assets/images/beef.png';
+    } else if (lower.contains('indian') || lower.contains('thali')) {
+      assetPath = 'assets/images/bento.png';
+    } else if (lower.contains('salad') || lower.contains('veg')) {
+      assetPath = 'assets/images/salad.png';
+    } else if (lower.contains('chicken') || lower.contains('biryani')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('pork') || lower.contains('mutton')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('beef') || lower.contains('meat')) {
+      assetPath = 'assets/images/beef.png';
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('assets/')) {
+      assetPath = imageUrl;
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(LucideIcons.utensilsCrossed, color: Color(0xFFFF9100), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.pop(ctx),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 340, maxWidth: 360),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 3.5,
+                    child: (imageUrl != null && imageUrl.startsWith('http'))
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (c, e, s) => Image.asset(assetPath, fit: BoxFit.contain),
+                          )
+                        : Image.asset(assetPath, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (price != null) ...[
+                      Text(
+                        '₹$price',
+                        style: GoogleFonts.outfit(color: const Color(0xFF4CAF50), fontWeight: FontWeight.w900, fontSize: 18),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    const Icon(Icons.zoom_in_rounded, color: Colors.white54, size: 16),
+                    const SizedBox(width: 4),
+                    Text('Pinch to zoom • Tap to preview', style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

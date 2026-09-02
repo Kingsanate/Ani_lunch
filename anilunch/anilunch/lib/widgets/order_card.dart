@@ -51,11 +51,12 @@ class OrderCard extends StatelessWidget {
   }
 
   static String _formatDate(DateTime date) {
+    final local = date.isUtc ? date.toLocal() : date;
     final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    final h = date.hour > 12 ? date.hour - 12 : date.hour == 0 ? 12 : date.hour;
-    final m = date.minute.toString().padLeft(2, '0');
-    final ampm = date.hour >= 12 ? 'PM' : 'AM';
-    return '${date.day} ${months[date.month - 1]}  $h:$m $ampm';
+    final h = local.hour > 12 ? local.hour - 12 : local.hour == 0 ? 12 : local.hour;
+    final m = local.minute.toString().padLeft(2, '0');
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+    return '${local.day} ${months[local.month - 1]}  $h:$m $ampm';
   }
 
   @override
@@ -64,9 +65,9 @@ class OrderCard extends StatelessWidget {
     try {
       final rawDate = order['order_time'] ?? order['created_at'] ?? order['date'];
       if (rawDate is DateTime) {
-        orderDate = rawDate;
+        orderDate = rawDate.isUtc ? rawDate.toLocal() : rawDate;
       } else if (rawDate is String) {
-        orderDate = DateTime.parse(rawDate);
+        orderDate = DateTime.parse(rawDate).toLocal();
       } else {
         orderDate = DateTime.now();
       }
@@ -191,6 +192,12 @@ class OrderCard extends StatelessWidget {
         errorWidget: (context, url, error) => Container(width: 56, height: 56, color: Colors.grey[200], child: const Icon(Icons.error_outline, size: 20)),
       );
     }
-    return Image.asset(imagePath, width: 56, height: 56, fit: BoxFit.contain);
+    return Image.asset(
+      imagePath,
+      width: 56,
+      height: 56,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Image.asset('assets/images/bento.png', width: 56, height: 56, fit: BoxFit.cover),
+    );
   }
 }

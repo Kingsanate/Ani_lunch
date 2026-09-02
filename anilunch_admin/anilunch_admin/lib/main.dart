@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/cache/admin_cache.dart';
 import 'core/database/app_database.dart';
 import 'core/providers/api_provider.dart';
@@ -20,32 +19,14 @@ void main() async {
       debugPrint('Notice: .env file not found or could not be parsed: $e');
     }
 
-    final supabaseUrl = dotenv.env['SUPABASE_URL'] ??
-        dotenv.env['NEXT_PUBLIC_SUPABASE_URL'] ??
-        'https://mujsywfelxqvkgvocdrn.supabase.co';
-    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ??
-        dotenv.env['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY'] ??
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11anN5d2ZlbHhxdmtndm9jZHJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjUyNTMsImV4cCI6MjA5MTg0MTI1M30.cvA3WwhiPD8HX2Dnlt9YbKCyp--xUkkN94H3BYETPj4';
-
-    // 2. Initialize Supabase
-    try {
-      await Supabase.initialize(
-        url: supabaseUrl,
-        anonKey: supabaseAnonKey,
-      );
-    } catch (e) {
-      debugPrint('Supabase initialize notice: $e');
-    }
-
-    // 3. Initialize Go API Provider & Realtime
+    // 2. Initialize Go API Provider & Realtime
     try {
       await AniApi.ensureInitialized();
-      await AniApi.exchangeForSession();
     } catch (e) {
       debugPrint('AniApi initialize notice: $e');
     }
 
-    // 4. Initialize Local Drift Cache
+    // 3. Initialize Local Drift Cache
     try {
       final db = AppDatabase();
       AdminCache.instance.init(db);
@@ -91,12 +72,7 @@ class AniLunchAdminApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool hasSession = false;
-    try {
-      hasSession = Supabase.instance.client.auth.currentSession != null;
-    } catch (_) {
-      hasSession = false;
-    }
+    final hasSession = AniApi.isLoggedIn;
 
     return ChangeNotifierProvider(
       create: (_) => AdminProvider(),

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'core/supabase_config.dart';
 import 'core/cache/order_cache.dart';
 import 'core/database/app_database.dart';
 import 'core/providers/api_provider.dart';
@@ -9,35 +7,67 @@ import 'core/sync/rider_sync_engine.dart';
 import 'pages/auth/login_page.dart';
 import 'main_wrapper.dart';
 import 'services/rider_state_provider.dart';
-
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: ".env");
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (e) {
+      debugPrint("Notice: .env file not found: $e");
+    }
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey, // ignore: deprecated_member_use
-  );
+    try {
+      await AniApi.ensureInitialized();
+    } catch (e) {
+      debugPrint("AniApi init notice: $e");
+    }
 
-  await AniApi.ensureInitialized();
-  await AniApi.exchangeForSession();
+    try {
+      final db = AppDatabase();
+      OrderCache.instance.init(db);
+      RiderSyncEngine.instance.init(db);
+    } catch (e) {
+      debugPrint("Database init notice: $e");
+    }
 
-  final db = AppDatabase();
-  OrderCache.instance.init(db);
-  RiderSyncEngine.instance.init(db);
-
-  runApp(const AniLunchRiderApp());
+    runApp(const AniLunchRiderApp());
+  } catch (e, stackTrace) {
+    debugPrint('Fatal Startup Error: $e\n$stackTrace');
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.orange, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('AniLunch Rider', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('$e', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class AniLunchRiderApp extends StatelessWidget {
-  const AniLunchRiderApp({super.key});
+  final Widget? home;
+  const AniLunchRiderApp({super.key, this.home});
 
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
+    final hasSession = AniApi.isLoggedIn;
 
     return ChangeNotifierProvider(
       create: (_) => RiderStateProvider(),
@@ -53,7 +83,7 @@ class AniLunchRiderApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        home: session != null ? const MainWrapper() : const LoginPage(),
+        home: home ?? (hasSession ? const MainWrapper() : const LoginPage()),
       ),
     );
   }

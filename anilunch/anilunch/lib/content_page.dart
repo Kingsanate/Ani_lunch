@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ContentPage extends StatefulWidget {
   final String slug;
@@ -24,32 +23,27 @@ class _ContentPageState extends State<ContentPage> {
   }
 
   Future<void> _fetchPageContent() async {
-    try {
-      final data = await Supabase.instance.client
-          .from('pages')
-          .select()
-          .eq('slug', widget.slug)
-          .maybeSingle();
+    final titleMap = {
+      'about': 'About Us',
+      'privacy': 'Privacy Policy',
+      'terms': 'Terms of Service',
+      'faq': 'Frequently Asked Questions',
+      'contact': 'Contact Us',
+    };
+    final contentMap = {
+      'about': 'AniLunch is your daily gourmet lunch and meat delivery companion, delivering fresh, chef-curated meals and farm-fresh meat right to your doorstep.',
+      'privacy': 'We take your privacy seriously. Your personal and delivery information is encrypted and securely stored.',
+      'terms': 'By using the AniLunch service, you agree to our fair delivery and transparent pricing policy.',
+      'faq': 'Orders are prepared fresh and dispatched promptly. You can track your order status in real time in the app.',
+      'contact': 'Reach out to our support team at support@anilunch.com or call +91 9774164689.',
+    };
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          if (data != null) {
-            _title = data['title']?.toString();
-            _content = data['content']?.toString();
-          } else {
-            _notFound = true;
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching page content: $e");
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _notFound = true;
-        });
-      }
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _title = titleMap[widget.slug] ?? 'AniLunch';
+        _content = contentMap[widget.slug] ?? 'AniLunch - Fresh food and meat delivered fast.';
+      });
     }
   }
 

@@ -63,7 +63,54 @@ class ApiClient {
     ));
   }
 
-  /// Exchanges a Supabase session JWT for Go short-lived tokens.
+  /// Logs in directly with email/phone and password.
+  Future<Map<String, dynamic>> login({
+    required String identifier,
+    required String password,
+  }) async {
+    final json = await _postRaw<Map<String, dynamic>>(
+      '/api/v1/auth/login',
+      {'identifier': identifier, 'password': password},
+      authenticated: false,
+    );
+    final userId = _userIdFromToken(json['access_token'] as String);
+    await tokens.update(
+      access: json['access_token'] as String,
+      refresh: json['refresh_token'] as String,
+      user: userId,
+    );
+    return json;
+  }
+
+  /// Registers a new user directly with email, phone, name, password, and role.
+  Future<Map<String, dynamic>> register({
+    String? email,
+    String? phone,
+    required String name,
+    required String password,
+    String role = 'customer',
+  }) async {
+    final json = await _postRaw<Map<String, dynamic>>(
+      '/api/v1/auth/register',
+      {
+        'email': email ?? '',
+        'phone': phone ?? '',
+        'name': name,
+        'password': password,
+        'role': role,
+      },
+      authenticated: false,
+    );
+    final userId = _userIdFromToken(json['access_token'] as String);
+    await tokens.update(
+      access: json['access_token'] as String,
+      refresh: json['refresh_token'] as String,
+      user: userId,
+    );
+    return json;
+  }
+
+  /// Exchanges a Supabase session JWT for Go short-lived tokens (legacy bridge).
   Future<TokenManager> exchangeSupabaseToken(String supabaseToken) async {
     final json = await _postRaw<Map<String, dynamic>>(
       '/api/v1/auth/exchange',
@@ -162,9 +209,15 @@ class ApiClient {
       return transform(json);
     }
     if (json == null) {
-      throw const ApiParseException('empty data payload');
+      if (null is T) return null as T;
+      if (T.toString().startsWith('List') || T == List) return <dynamic>[] as T;
+      return <String, dynamic>{} as T;
     }
     try {
+      if (T == List || T.toString().startsWith('List')) {
+        if (json is List) return json as T;
+        return <dynamic>[] as T;
+      }
       return json as T;
     } on TypeError {
       throw ApiParseException(

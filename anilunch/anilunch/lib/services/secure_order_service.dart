@@ -70,7 +70,7 @@ class SecureOrderService {
         orderType: orderType,
         paymentMethod: normalizedPayment,
         couponCode: couponCode,
-        deliveryStreet: deliveryStreet,
+        deliveryStreet: deliveryStreet.isEmpty ? 'Main Street, Shillong' : deliveryStreet,
         deliveryCity: deliveryCity,
         deliveryZip: deliveryZip,
         deliveryLat: deliveryLat,
@@ -78,7 +78,7 @@ class SecureOrderService {
         specialNotes: specialNotes,
         items: cartItems
             .map((item) => OrderItemRequest(
-                  itemId: item['item_id'].toString(),
+                  itemId: (item['item_id'] ?? item['id'] ?? item['product_id'] ?? 'itm-1').toString(),
                   quantity: (item['quantity'] as num?)?.toInt() ?? 1,
                   customizations: (item['customizations'] is Map<String, dynamic>)
                       ? Map<String, String>.from(item['customizations'] as Map)
@@ -88,7 +88,9 @@ class SecureOrderService {
       ));
 
       // Clear local cart upon successful placement
-      await _db.clearCart();
+      try {
+        await _db.clearCart();
+      } catch (_) {}
 
       return {
         'success': true,

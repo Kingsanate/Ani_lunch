@@ -22,17 +22,24 @@ class WsEvent {
 
   const WsEvent(this.data);
 
-  bool get isOrderEvent => data['event_type'] is String;
+  Map<String, dynamic> get payload =>
+      (data['data'] is Map<String, dynamic>) ? (data['data'] as Map<String, dynamic>) : data;
 
-  bool get isRiderLocation => data['rider_id'] is String && data['latitude'] is num;
+  bool get isOrderEvent =>
+      data['event_type'] is String ||
+      data['type'] == 'order.updated' ||
+      payload['order_id'] is String;
+
+  bool get isRiderLocation =>
+      payload['rider_id'] is String && payload['latitude'] is num;
 
   /// order:... / rider:... / vendor:... channel this event was received on.
-  String? get channel => data['channel'] as String?;
+  String? get channel => (data['channel'] ?? payload['channel']) as String?;
 
-  OrderWsEvent? get orderEvent => isOrderEvent ? OrderWsEvent.from(data) : null;
+  OrderWsEvent? get orderEvent => isOrderEvent ? OrderWsEvent.from(payload) : null;
 
   RiderLocationWsEvent? get riderLocation =>
-      isRiderLocation ? RiderLocationWsEvent.from(data) : null;
+      isRiderLocation ? RiderLocationWsEvent.from(payload) : null;
 }
 
 class OrderWsEvent {
@@ -115,7 +122,9 @@ class RealtimeClient {
   StreamSubscription? _sub;
   final _controls = StreamController<WsControlMessage>.broadcast();
   final _events = StreamController<WsEvent>.broadcast();
+  final Set<String> _joinedChannels = {};
   Timer? _pingTimer;
+  Timer? _reconnectTimer;
   bool _disposed = false;
 
   /// Emits gateway control frames (joined / error / pong).
@@ -132,35 +141,60 @@ class RealtimeClient {
     this.pingInterval = const Duration(seconds: 30),
   });
 
-  /// Opens the WebSocket and starts the ping timer. Throws on failure.
+  /// Opens the WebSocket and starts the ping timer.
   Future<void> connect() async {
-    if (_disposed) {
-      throw StateError('realtime: client is closed');
+    if (_disposed || _channel != null) return;
+    try {
+      final token = await tokenProvider();
+      if (token == null || token.isEmpty) return;
+      final wsBase = baseUrl.replaceFirst('http://', 'ws://').replaceFirst(
+          'https://', 'wss://');
+      final uri = Uri.parse('$wsBase/api/v1/ws?token=$token');
+      final channel = WebSocketChannel.connect(uri);
+      _channel = channel;
+      _sub = channel.stream.listen(
+        (data) => _handleFrame(data),
+        onError: (Object e) {
+          _teardown();
+          _scheduleReconnect();
+        },
+        onDone: () {
+          _teardown();
+          _scheduleReconnect();
+        },
+        cancelOnError: true,
+      );
+      _pingTimer?.cancel();
+      _pingTimer = Timer.periodic(pingInterval, (_) => ping());
+
+      // Restore previously joined channels automatically
+      for (final ch in _joinedChannels) {
+        _send({'type': 'join', 'channel': ch});
+      }
+    } catch (_) {
+      _teardown();
+      _scheduleReconnect();
     }
-    if (_channel != null) return;
-    final token = await tokenProvider();
-    if (token == null || token.isEmpty) {
-      throw StateError('realtime: no access token available');
-    }
-    final wsBase = baseUrl.replaceFirst('http://', 'ws://').replaceFirst(
-        'https://', 'wss://');
-    final uri = Uri.parse('$wsBase/api/v1/ws?token=$token');
-    final channel = WebSocketChannel.connect(uri);
-    _channel = channel;
-    _sub = channel.stream.listen(
-      (data) => _handleFrame(data),
-      onError: (Object e) {
-        _teardown();
-      },
-      onDone: () => _teardown(),
-      cancelOnError: true,
-    );
-    _pingTimer = Timer.periodic(pingInterval, (_) => ping());
   }
 
-  void join(String channel) => _send({'type': 'join', 'channel': channel});
+  void _scheduleReconnect() {
+    if (_disposed || _reconnectTimer?.isActive == true) return;
+    _reconnectTimer = Timer(const Duration(seconds: 3), () {
+      if (!_disposed && _channel == null) {
+        connect();
+      }
+    });
+  }
 
-  void leave(String channel) => _send({'type': 'leave', 'channel': channel});
+  void join(String channel) {
+    _joinedChannels.add(channel);
+    _send({'type': 'join', 'channel': channel});
+  }
+
+  void leave(String channel) {
+    _joinedChannels.remove(channel);
+    _send({'type': 'leave', 'channel': channel});
+  }
 
   void ping() => _send({'type': 'ping'});
 
@@ -182,14 +216,17 @@ class RealtimeClient {
     } catch (_) {
       return;
     }
-    if (json['type'] is String) {
+
+    final type = (json['type'] as String?)?.toLowerCase();
+    if (type == 'joined' || type == 'left' || type == 'pong' || type == 'error') {
       _controls.add(WsControlMessage(
-        type: json['type'] as String,
+        type: type!,
         channel: json['channel'] as String?,
         message: json['message'] as String?,
       ));
       return;
     }
+
     _events.add(WsEvent(json));
   }
 
@@ -201,10 +238,15 @@ class RealtimeClient {
     _channel = null;
   }
 
+  void disconnect() {
+    _reconnectTimer?.cancel();
+    _teardown();
+    _channel?.sink.close();
+  }
+
   Future<void> close() async {
     _disposed = true;
-    _teardown();
-    await _channel?.sink.close();
+    disconnect();
     await _controls.close();
     await _events.close();
   }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/lunch_service.dart';
 
 class LunchProvider extends ChangeNotifier {
@@ -60,7 +59,6 @@ class LunchProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   final List<Map<String, dynamic>> _cart = [];
-  RealtimeChannel? _channel;
 
   List<Map<String, dynamic>> get products => _products.isNotEmpty ? _products : defaultMeals;
   bool get isLoading => _isLoading;
@@ -162,22 +160,10 @@ class LunchProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void subscribeToChanges() {
-    _channel?.unsubscribe();
-    _channel = Supabase.instance.client
-        .channel('public:lunch_provider')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'meal_products',
-          callback: (payload) => fetchProducts(),
-        )
-        .subscribe();
-  }
+  void subscribeToChanges() {}
 
   @override
   void dispose() {
-    _channel?.unsubscribe();
     super.dispose();
   }
 }

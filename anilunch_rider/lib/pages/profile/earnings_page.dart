@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/providers/api_provider.dart';
 import '../../models/order.dart';
 import '../../services/order_service.dart';
 
@@ -19,7 +19,7 @@ class _EarningsPageState extends State<EarningsPage> with SingleTickerProviderSt
   // 0=Today, 1=Week, 2=Month, 3=All
   int _selectedPeriod = 0;
 
-  String get _riderId => Supabase.instance.client.auth.currentUser?.id ?? '';
+  String get _riderId => AniApi.currentUserId ?? '';
 
   @override
   void initState() {

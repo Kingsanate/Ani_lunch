@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/cache/admin_cache.dart';
 import 'core/providers/api_provider.dart';
 import 'services/api_client.dart';
@@ -61,10 +60,7 @@ class _RiderManagementViewState extends State<RiderManagementView>
       final riders = List<Map<String, dynamic>>.from(ridersData);
 
       // Fetch delivered order counts grouped by rider_id
-      final ordersData = await Supabase.instance.client
-          .from('orders')
-          .select('rider_id')
-          .eq('status', 'delivered');
+      final ordersData = await ApiClient.fetchOrders(status: 'delivered');
 
       final counts = <String, int>{};
       for (final o in ordersData) {
@@ -101,29 +97,32 @@ class _RiderManagementViewState extends State<RiderManagementView>
   }
 
   void _pulseBadge() {
+    _badgePulse = true;
     _badgeTimer?.cancel();
-    setState(() => _badgePulse = true);
-    _badgeTimer = Timer(const Duration(seconds: 2), () {
+    _badgeTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _badgePulse = false);
     });
   }
 
+  // ── Getters for filtered rider lists ────────────────────────────────────
+
+  List<Map<String, dynamic>> get _pendingRiders =>
+      _riders.where((r) => r['approval_status'] == 'pending').toList();
+
+  List<Map<String, dynamic>> get _activeRiders => _riders
+      .where((r) =>
+          r['is_approved'] == true && r['approval_status'] == 'approved')
+      .toList();
+
   // ── Admin Actions ───────────────────────────────────────────────────────
 
   Future<void> _approveRider(String riderId) async {
-    if (await ApiClient.setRiderApproval(riderId, 'approved')) {
+    final success = await ApiClient.setRiderApproval(riderId, 'approved');
+    if (success) {
       _showSnack('✅ Rider approved! They can now go online.', const Color(0xFF16A34A));
-      return;
-    }
-    try {
-      await Supabase.instance.client.from('riders').update({
-        'is_approved': true,
-        'approval_status': 'approved',
-        'rejection_reason': null,
-      }).eq('id', riderId);
-      _showSnack('✅ Rider approved! They can now go online.', const Color(0xFF16A34A));
-    } catch (e) {
-      _showSnack('Error approving rider: $e', Colors.red);
+      await _loadData();
+    } else {
+      _showSnack('Error approving rider.', Colors.red);
     }
   }
 
@@ -193,25 +192,16 @@ class _RiderManagementViewState extends State<RiderManagementView>
     if (confirmed != true || riderId.isEmpty) return;
 
     final reason = reasonCtrl.text.trim();
-    if (await ApiClient.setRiderApproval(
+    final success = await ApiClient.setRiderApproval(
       riderId,
       'rejected',
       rejectionReason: reason.isEmpty ? null : reason,
-    )) {
+    );
+    if (success) {
       _showSnack('Rider application rejected.', const Color(0xFF64748B));
-      return;
-    }
-
-    try {
-      await Supabase.instance.client.from('riders').update({
-        'is_approved': false,
-        'approval_status': 'rejected',
-        'is_online': false,
-        if (reason.isNotEmpty) 'rejection_reason': reason,
-      }).eq('id', riderId);
-      _showSnack('Rider application rejected.', const Color(0xFF64748B));
-    } catch (e) {
-      _showSnack('Error rejecting rider: $e', Colors.red);
+      await _loadData();
+    } else {
+      _showSnack('Error rejecting rider.', Colors.red);
     }
   }
 
@@ -239,14 +229,13 @@ class _RiderManagementViewState extends State<RiderManagementView>
       ),
     );
     if (confirm != true) return;
-    try {
-      await Supabase.instance.client
-          .from('riders')
-          .delete()
-          .eq('id', rider['id'].toString());
+    final riderId = rider['id']?.toString() ?? '';
+    final success = await ApiClient.setRiderApproval(riderId, 'rejected');
+    if (success) {
       _showSnack('Rider removed.', const Color(0xFF64748B));
-    } catch (e) {
-      _showSnack('Error: $e', Colors.red);
+      await _loadData();
+    } else {
+      _showSnack('Error removing rider.', Colors.red);
     }
   }
 
@@ -259,14 +248,6 @@ class _RiderManagementViewState extends State<RiderManagementView>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
-
-  // ── Filtered lists ──────────────────────────────────────────────────────
-
-  List<Map<String, dynamic>> get _pendingRiders =>
-      _riders.where((r) => (r['approval_status'] ?? 'pending') == 'pending').toList();
-
-  List<Map<String, dynamic>> get _activeRiders =>
-      _riders.where((r) => r['is_approved'] == true).toList();
 
 
   // ── Build ───────────────────────────────────────────────────────────────

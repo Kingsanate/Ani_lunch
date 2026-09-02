@@ -1,50 +1,35 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
+import '../core/providers/api_provider.dart';
 
 class OrderService {
-  final SupabaseClient _client = Supabase.instance.client;
-
   Future<List<Map<String, dynamic>>> fetchUserOrders(String userId) async {
-    final data = await _client
-        .from('orders')
-        .select()
-        .eq('user_id', userId)
-        .order('order_time', ascending: false);
-    return List<Map<String, dynamic>>.from(data);
-  }
-
-  Future<Map<String, dynamic>> createOrder(
-      Map<String, dynamic> orderData) async {
-    final data =
-        await _client.from('orders').insert(orderData).select().single();
-    return data;
-  }
-
-  Future<void> updateOrderStatus(String orderId, String status) async {
-    await _client
-        .from('orders')
-        .update({'status': status})
-        .eq('id', orderId);
+    try {
+      final orders = await AniApi.instance.api.orders.list();
+      return orders.map((o) => {
+        'id': o.id,
+        'user_id': o.userId,
+        'order_type': o.orderType,
+        'status': o.status,
+        'subtotal': o.subtotal.paise ~/ 100,
+        'total_amount': o.totalAmount.paise ~/ 100,
+        'payment_method': o.paymentMethod,
+        'created_at': o.createdAt.toIso8601String(),
+      }).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> cancelOrder(String orderId) async {
-    await updateOrderStatus(orderId, 'cancelled');
+    await AniApi.instance.api.orders.cancel(orderId);
   }
 
-  RealtimeChannel subscribeToOrderUpdates(
+  StreamSubscription? subscribeToOrderUpdates(
       String userId, void Function() callback) {
-    return _client
-        .channel('public:user_orders_$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'orders',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: userId,
-          ),
-          callback: (_) => callback(),
-        )
-        .subscribe();
+    try {
+      return AniApi.instance.realtime.events.listen((_) => callback());
+    } catch (_) {
+      return null;
+    }
   }
 }

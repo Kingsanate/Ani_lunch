@@ -41,17 +41,17 @@ class LunchProductCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -67,10 +67,10 @@ class LunchProductCard extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.65),
                   alignment: Alignment.center,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(5),
                       border: Border.all(color: Colors.white24),
                     ),
                     child: const Text(
@@ -79,28 +79,28 @@ class LunchProductCard extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        fontSize: 11,
-                        letterSpacing: 0.8,
+                        fontSize: 9,
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ),
                 ),
 
-              // Discount badge in top-left
+              // Deal badge in top-left
               if (discountPrice != null && discountPrice != price && isAvailable)
                 Positioned(
-                  top: 8,
-                  left: 8,
+                  top: 5,
+                  left: 5,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: const Color(0xFF16A34A),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(4),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
                         ),
                       ],
                     ),
@@ -108,9 +108,9 @@ class LunchProductCard extends StatelessWidget {
                       'DEAL',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 9,
+                        fontSize: 8,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                       ),
                     ),
                   ),
@@ -120,13 +120,14 @@ class LunchProductCard extends StatelessWidget {
               Positioned(
                 bottom: 0, left: 0, right: 0,
                 child: Container(
-                  height: 95,
+                  height: 68,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withValues(alpha: 0.85),
+                        Colors.black.withValues(alpha: 0.88),
+                        Colors.black.withValues(alpha: 0.50),
                         Colors.black.withValues(alpha: 0.0),
                       ],
                     ),
@@ -136,7 +137,7 @@ class LunchProductCard extends StatelessWidget {
 
               // Product Info & Price
               Positioned(
-                bottom: 8, left: 10, right: 40,
+                bottom: 6, left: 8, right: 36,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -144,25 +145,31 @@ class LunchProductCard extends StatelessWidget {
                     Text(
                       name,
                       style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 13.0,
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                         letterSpacing: -0.2,
+                        shadows: [
+                          Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 1)),
+                        ],
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (description.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
@@ -170,18 +177,18 @@ class LunchProductCard extends StatelessWidget {
                         Text(
                           '₹${discountPrice ?? price}',
                           style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 13.0,
+                            fontWeight: FontWeight.w800,
                             color: Colors.white,
                           ),
                         ),
                         if (discountPrice != null && discountPrice != price) ...[
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 4),
                           Text(
                             '₹$price',
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 10.0,
+                              color: Colors.white.withValues(alpha: 0.55),
                               decoration: TextDecoration.lineThrough,
                             ),
                           ),
@@ -194,7 +201,7 @@ class LunchProductCard extends StatelessWidget {
 
               // Floating Circular ADD Button
               Positioned(
-                bottom: 8, right: 8,
+                bottom: 6, right: 6,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -206,26 +213,26 @@ class LunchProductCard extends StatelessWidget {
                         builder: (context) => CustomizationBottomSheet(product: product),
                       );
                     } : null,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      height: 32,
-                      width: 32,
+                      height: 28,
+                      width: 28,
                       decoration: BoxDecoration(
                         color: isAvailable ? const Color(0xFFF15A24) : Colors.grey.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
-                            color: const Color(0xFFF15A24).withValues(alpha: 0.4),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                            color: Color(0x73F15A24),
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
                           )
                         ],
                       ),
-                      child: Center(
+                      child: const Center(
                         child: Icon(
                           Icons.add_rounded,
-                          color: isAvailable ? Colors.white : Colors.white54,
-                          size: 20,
+                          color: Colors.white,
+                          size: 18,
                         ),
                       ),
                     ),
@@ -240,17 +247,29 @@ class LunchProductCard extends StatelessWidget {
   }
 
   static String resolveDishImageUrl(String name, String? originalUrl) {
+    if (originalUrl != null && originalUrl.isNotEmpty) {
+      if (originalUrl.startsWith('assets/')) {
+        return originalUrl;
+      }
+      if (originalUrl.startsWith('http') &&
+          !originalUrl.contains('shillong') &&
+          !originalUrl.contains('teer') &&
+          !originalUrl.contains('dummy')) {
+        return originalUrl;
+      }
+    }
+
     final lower = name.toLowerCase();
     if (lower.contains('mizo')) {
       return 'assets/images/pork.png';
     }
     if (lower.contains('naga')) {
-      return 'assets/images/beef.png';
-    }
-    if (lower.contains('khasi')) {
       return 'assets/images/chicken.png';
     }
-    if (lower.contains('indian') || lower.contains('thali')) {
+    if (lower.contains('khasi')) {
+      return 'assets/images/beef.png';
+    }
+    if (lower.contains('indian') || lower.contains('bento') || lower.contains('thali') || lower.contains('lunch')) {
       return 'assets/images/bento.png';
     }
     if (lower.contains('salad') || lower.contains('veg')) {
@@ -264,13 +283,6 @@ class LunchProductCard extends StatelessWidget {
     }
     if (lower.contains('beef') || lower.contains('meat')) {
       return 'assets/images/beef.png';
-    }
-    if (originalUrl != null &&
-        originalUrl.startsWith('http') &&
-        !originalUrl.contains('shillong') &&
-        !originalUrl.contains('teer') &&
-        !originalUrl.contains('dummy')) {
-      return originalUrl;
     }
     return 'assets/images/bento.png';
   }

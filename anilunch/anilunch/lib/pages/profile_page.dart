@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/providers/api_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/lunch_provider.dart';
@@ -17,7 +18,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  Map<String, dynamic>? _dbProfile;
+  User? _profile;
 
   @override
   void initState() {
@@ -26,18 +27,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _fetchProfile() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
     try {
-      final data = await Supabase.instance.client
-          .from('users')
-          .select()
-          .eq('user_id', user.id)
-          .maybeSingle();
-      if (mounted && data != null) {
-        setState(() {
-          _dbProfile = data;
-        });
+      if (AniApi.isLoggedIn) {
+        final data = await AniApi.instance.api.users.me();
+        if (mounted) {
+          setState(() {
+            _profile = data;
+          });
+        }
       }
     } catch (_) {}
   }
@@ -85,14 +82,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
-    final avatarUrl = _dbProfile != null
-        ? (_dbProfile!['profile_image_url'] ?? _dbProfile!['avatar_url'])
-        : (user?.userMetadata?['profile_image_url'] ?? user?.userMetadata?['avatar_url']);
-    final fullName = _dbProfile != null && (_dbProfile!['name'] ?? '').toString().isNotEmpty
-        ? _dbProfile!['name']
-        : (user?.userMetadata?['full_name'] ?? user?.userMetadata?['name'] ?? 'Member');
-    final email = _dbProfile?['email'] ?? user?.email ?? 'No Email';
+    final authUser = context.watch<AuthProvider>().user;
+    final user = _profile ?? authUser;
+    final avatarUrl = user?.avatarUrl;
+    final fullName = user?.name.isNotEmpty == true ? user!.name : 'Customer';
+    final email = user?.email.isNotEmpty == true ? user!.email : 'No Email';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9F6F3),
@@ -148,7 +142,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: const [BoxShadow(color: Color(0x04000000), blurRadius: 8, offset: Offset(0, 2))]),
                     child: Column(children: [
                       _buildMenuOption(Icons.person_outline_rounded, 'Edit Information', onTap: () async {
-                        final updated = await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditInformationPage()));
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditInformationPage()));
                         if (mounted) {
                           // Always refetch — small delay ensures DB write has landed
                           await Future.delayed(const Duration(milliseconds: 300));

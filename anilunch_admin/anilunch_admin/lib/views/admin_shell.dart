@@ -8,7 +8,6 @@ import 'login_view.dart';
 import '../admin_theme.dart';
 import '../core/providers/api_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -104,10 +103,7 @@ class _AdminShellState extends State<AdminShell> {
   }
 
   Widget _buildDrawer(BuildContext context) {
-    String email = 'admin@anilunch.com';
-    try {
-      email = Supabase.instance.client.auth.currentUser?.email ?? 'admin@anilunch.com';
-    } catch (_) {}
+    const email = 'admin@anilunch.com';
     final displayName = email.split('@').first;
 
     return Drawer(
@@ -161,8 +157,7 @@ class _AdminShellState extends State<AdminShell> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
             child: InkWell(
               onTap: () async {
-                await AniApi.exchangeForSession(supabaseToken: '');
-                await Supabase.instance.client.auth.signOut();
+                await AniApi.onLogout();
                 if (!mounted) return;
                 // ignore: use_build_context_synchronously
                 Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginView()));

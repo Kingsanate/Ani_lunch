@@ -52,6 +52,8 @@ class RiderOrderItem {
   final int quantity;
   final Money unitPrice;
   final Money subtotal;
+  final String? image;
+  final Map<String, String>? customizations;
 
   const RiderOrderItem({
     required this.id,
@@ -60,16 +62,27 @@ class RiderOrderItem {
     required this.quantity,
     required this.unitPrice,
     required this.subtotal,
+    this.image,
+    this.customizations,
   });
 
-  factory RiderOrderItem.fromJson(Map<String, dynamic> json) => RiderOrderItem(
-        id: str(json, 'id'),
-        itemId: str(json, 'item_id'),
-        name: str(json, 'name'),
-        quantity: intOf(json, 'quantity'),
-        unitPrice: Money.fromJson(json['unit_price']),
-        subtotal: Money.fromJson(json['subtotal']),
-      );
+  factory RiderOrderItem.fromJson(Map<String, dynamic> json) {
+    Map<String, String>? customizations;
+    if (json['customizations'] is Map) {
+      customizations = (json['customizations'] as Map)
+          .map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+    return RiderOrderItem(
+      id: str(json, 'id'),
+      itemId: str(json, 'item_id'),
+      name: str(json, 'name'),
+      quantity: intOf(json, 'quantity'),
+      unitPrice: Money.fromJson(json['unit_price']),
+      subtotal: Money.fromJson(json['subtotal']),
+      image: optStr(json, 'image'),
+      customizations: customizations,
+    );
+  }
 }
 
 class RiderOrder {

@@ -59,40 +59,39 @@ class LunchSection extends StatelessWidget {
           );
         }
 
+        final width = MediaQuery.of(context).size.width;
+        final int crossAxisCount = width > 900 ? 4 : (width > 600 ? 3 : 2);
+        final double childAspectRatio = width > 900 ? 1.75 : (width > 600 ? 1.60 : 1.45);
+
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.15,
-                ),
-                itemCount: products.length,
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return LunchProductCard(
-                    product: product,
-                    onAddToCart: () {
-                      provider.addToCart(product);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${product['name']} added to Lunch Cart!'),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: childAspectRatio,
+            ),
+            itemCount: products.length,
+            itemBuilder: (context, index) {
+              final product = products[index];
+              return LunchProductCard(
+                product: product,
+                onAddToCart: () {
+                  provider.addToCart(product);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${product['name']} added to Lunch Cart!'),
+                      backgroundColor: const Color(0xFF16A34A),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
                   );
                 },
-              ),
-            ],
+              );
+            },
           ),
         );
       },

@@ -1,8 +1,8 @@
 import '../main.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../admin_theme.dart';
@@ -31,7 +31,6 @@ class _MenuManagementViewState extends State<MenuManagementView> {
   List<Map<String, dynamic>> _categoriesList = [];
   bool _isLoading = true;
   StreamSubscription<WsEvent>? _menuChannel;
-  RealtimeChannel? _lunchChannel;
 
   // Image upload state
   Uint8List? _selectedImageBytes;
@@ -102,14 +101,9 @@ class _MenuManagementViewState extends State<MenuManagementView> {
         entityType: 'menu_items',
         fetcher: () async => ApiClient.fetchItems(),
       );
-      final lunchData = await AdminCache.instance.fetchCacheFirst(
-        entityType: 'meal_products',
-        fetcher: () async => (await Supabase.instance.client
-                .from('meal_products')
-                .select()
-                .order('name'))
-            .cast<Map<String, dynamic>>(),
-      );
+      final lunchRaw = await AniApi.instance.api.client.get<List<dynamic>>('/api/v1/catalog/meal_products').catchError((_) => <dynamic>[]);
+      final lunchData = lunchRaw.cast<Map<String, dynamic>>();
+
       if (mounted) {
         setState(() {
           _categoriesList = List<Map<String, dynamic>>.from(categoriesData);
@@ -131,28 +125,11 @@ class _MenuManagementViewState extends State<MenuManagementView> {
     _menuChannel = realtime.events.listen((event) {
       _fetchMenuInitial();
     });
-
-    _lunchChannel = Supabase.instance.client.channel('public:meal_products').onPostgresChanges(
-        event: PostgresChangeEvent.all, schema: 'public', table: 'meal_products',
-        callback: (payload) {
-          if (!mounted) return;
-          setState(() {
-            if (payload.eventType == PostgresChangeEvent.insert) {
-              _lunchItems.insert(0, payload.newRecord);
-            } else if (payload.eventType == PostgresChangeEvent.update) {
-              final i = _lunchItems.indexWhere((x) => x['id'] == payload.newRecord['id']);
-              if (i != -1) _lunchItems[i] = payload.newRecord;
-            } else if (payload.eventType == PostgresChangeEvent.delete) {
-              _lunchItems.removeWhere((x) => x['id'] == payload.oldRecord['id']);
-            }
-          });
-        }).subscribe();
   }
 
   @override
   void dispose() {
     _menuChannel?.cancel();
-    _lunchChannel?.unsubscribe();
     _nameController.dispose();
     _subtitleController.dispose();
     _priceController.dispose();
@@ -174,9 +151,8 @@ class _MenuManagementViewState extends State<MenuManagementView> {
 
   Future<String?> _uploadImage(Uint8List bytes, String fileName, String folder, String bucket) async {
     try {
-      final path = '$folder/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-      await Supabase.instance.client.storage.from(bucket).uploadBinary(path, bytes, retryAttempts: 3);
-      return Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+      final b64 = base64Encode(bytes);
+      return 'data:image/jpeg;base64,$b64';
     } catch (e) {
       debugPrint('Upload error: $e');
       return null;
@@ -187,8 +163,6 @@ class _MenuManagementViewState extends State<MenuManagementView> {
   Future<void> _deleteMenuItem(Map<String, dynamic> item) async {
     final isLunch = _mainTab == 'Lunch';
     final title   = isLunch ? item['name'] : item['item_title'];
-    final table   = isLunch ? 'meal_products' : 'items';
-    final bucket  = isLunch ? 'meal-products' : 'items';
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -209,25 +183,8 @@ class _MenuManagementViewState extends State<MenuManagementView> {
 
     if (confirm != true) return;
     try {
-      final imgUrl = isLunch ? item['image_url'] : item['thumbnail_url'];
-      final imgUrl2 = isLunch ? item['image_url_2'] : item['thumbnail_url_2'];
-      final imgUrl3 = isLunch ? item['image_url_3'] : item['thumbnail_url_3'];
-      
-      final pathsToRemove = <String>[];
-      if (imgUrl != null && imgUrl.isNotEmpty && imgUrl.contains('/public/$bucket/')) {
-        pathsToRemove.add(imgUrl.split('/public/$bucket/').last);
-      }
-      if (imgUrl2 != null && imgUrl2.isNotEmpty && imgUrl2.contains('/public/$bucket/')) {
-        pathsToRemove.add(imgUrl2.split('/public/$bucket/').last);
-      }
-      if (imgUrl3 != null && imgUrl3.isNotEmpty && imgUrl3.contains('/public/$bucket/')) {
-        pathsToRemove.add(imgUrl3.split('/public/$bucket/').last);
-      }
-      if (pathsToRemove.isNotEmpty) {
-        await Supabase.instance.client.storage.from(bucket).remove(pathsToRemove);
-      }
       if (isLunch) {
-        await Supabase.instance.client.from(table).delete().eq('id', item['id']);
+        await AniApi.instance.api.client.delete('/api/v1/catalog/meal_products/${item['id']}').catchError((_) => null);
       } else {
         await ApiClient.deleteItem(item['id'].toString());
       }
@@ -252,7 +209,7 @@ class _MenuManagementViewState extends State<MenuManagementView> {
       _nameController.text     = (isLunch ? item['name'] : item['item_title']) ?? '';
       _subtitleController.text = (isLunch ? item['description'] : item['item_info']) ?? '';
       _priceController.text    = ((isLunch ? item['price'] : item['item_price']) ?? 0).toString();
-      if (!isLunch) _selectedCategory = (item['menus']?['menu_title'] ?? item['category']) ?? 'Beef';
+      _selectedCategory = (!isLunch) ? (item['menus']?['menu_title'] ?? item['category']) : null;
       _selectedImageBytes = null;
       _selectedImageName  = null;
       _selectedImageBytes2 = null;
@@ -261,9 +218,9 @@ class _MenuManagementViewState extends State<MenuManagementView> {
       _selectedImageName3  = null;
       if (isLunch) {
         final riceRaw = item['rice_options'];
-        _selectedRiceOptions = riceRaw != null ? List<String>.from(riceRaw as List) : List.from(_allRiceOptions);
+        _selectedRiceOptions = riceRaw is List ? List<String>.from(riceRaw) : List.from(_allRiceOptions);
         final meatRaw = item['meat_options'];
-        _selectedMeatOptions = meatRaw != null ? List<String>.from(meatRaw as List) : List.from(_allMeatOptions);
+        _selectedMeatOptions = meatRaw is List ? List<String>.from(meatRaw) : List.from(_allMeatOptions);
       }
     } else {
       _nameController.clear();
@@ -276,7 +233,10 @@ class _MenuManagementViewState extends State<MenuManagementView> {
       _selectedImageName2  = null;
       _selectedImageBytes3 = null;
       _selectedImageName3  = null;
-      if (isLunch) { _selectedRiceOptions = List.from(_allRiceOptions); _selectedMeatOptions = List.from(_allMeatOptions); }
+      if (isLunch) {
+        _selectedRiceOptions = List.from(_allRiceOptions);
+        _selectedMeatOptions = List.from(_allMeatOptions);
+      }
     }
 
     showModalBottomSheet(
@@ -424,7 +384,6 @@ class _MenuManagementViewState extends State<MenuManagementView> {
                                       }
 
                                       Map<String, dynamic> data;
-                                      final table = isLunch ? 'meal_products' : 'items';
 
                                       if (isLunch) {
                                         data = {
@@ -460,14 +419,14 @@ class _MenuManagementViewState extends State<MenuManagementView> {
 
                                       if (isEditing) {
                                         if (isLunch) {
-                                          await Supabase.instance.client.from(table).update(data).eq('id', item['id']);
+                                          await AniApi.instance.api.client.put('/api/v1/catalog/meal_products/${item['id']}', body: data).catchError((_) => null);
                                         } else {
                                           data['id'] = item['id'];
                                           await ApiClient.saveItem(data);
                                         }
                                       } else {
                                         if (isLunch) {
-                                          await Supabase.instance.client.from(table).insert(data);
+                                          await AniApi.instance.api.client.post('/api/v1/catalog/meal_products', body: data).catchError((_) => null);
                                         } else {
                                           await ApiClient.saveItem(data);
                                         }

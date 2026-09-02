@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/material.dart';
 import '../admin_theme.dart';
-import '../core/cache/admin_cache.dart';
 import '../core/providers/api_provider.dart';
 import '../services/api_client.dart';
 
@@ -20,19 +19,18 @@ class _OverviewDashboardViewState extends State<OverviewDashboardView> {
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   StreamSubscription<WsEvent>? _orderChannel;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
+    _fetchOrders();
     _subscribeToData();
   }
 
   void _fetchOrders() async {
     try {
-      final data = await AdminCache.instance.fetchCacheFirst(
-        entityType: 'orders',
-        fetcher: () async => ApiClient.fetchOrders(),
-      );
+      final data = await ApiClient.fetchOrders();
       if (mounted) {
         setState(() {
           _orders = List<Map<String, dynamic>>.from(data);
@@ -64,12 +62,18 @@ class _OverviewDashboardViewState extends State<OverviewDashboardView> {
   }
 
   void _subscribeToData() {
-    _fetchOrders();
-    final realtime = AniApi.instance.realtime;
-    if (!realtime.isConnected) return;
-    realtime.join('admin');
-    _orderChannel = realtime.events.listen((event) {
-      if (event.orderEvent != null) _fetchOrders();
+    try {
+      final realtime = AniApi.instance.realtime;
+      realtime.connect().then((_) {
+        realtime.join('admin.orders');
+        _orderChannel = realtime.events.listen((event) {
+          if (event.orderEvent != null && mounted) _fetchOrders();
+        });
+      }).catchError((_) {});
+    } catch (_) {}
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) _fetchOrders();
     });
   }
 
@@ -77,6 +81,7 @@ class _OverviewDashboardViewState extends State<OverviewDashboardView> {
   void dispose() {
     _searchController.dispose();
     _orderChannel?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 

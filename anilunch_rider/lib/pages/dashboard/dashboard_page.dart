@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../models/rider.dart';
 import '../../models/order.dart';
 import '../../services/auth_service.dart';
@@ -48,11 +48,104 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     _subscribeRealtime();
   }
 
+  final Set<String> _seenOrderAlerts = {};
+  Timer? _pollTimer;
+
   Future<void> _refresh() async {
     if (_rider == null) return;
     final orders = await OrderService.fetchAvailableOrders(_rider!.id);
     final active = await OrderService.fetchActiveOrder(_rider!.id);
-    if (mounted) setState(() { _availableOrders = orders; _activeOrder = active; });
+    if (mounted) {
+      setState(() { _availableOrders = orders; _activeOrder = active; });
+      if (_rider!.isOnline && orders.isNotEmpty) {
+        for (final o in orders) {
+          if (!_seenOrderAlerts.contains(o.id)) {
+            _seenOrderAlerts.add(o.id);
+            _showNewDeliveryDialog(o);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  void _showNewDeliveryDialog(OrderModel order) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: const Color(0xFF161616),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Color(0xFFFF9100), width: 1.5)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF9100).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(LucideIcons.bike, color: Color(0xFFFF9100), size: 32),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '🛵 NEW DELIVERY AVAILABLE!',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Order #${order.shortId} • ₹${order.totalAmount?.toStringAsFixed(0) ?? "0"}',
+                style: GoogleFonts.robotoMono(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFFFF9100)),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                order.customerAddress ?? 'Customer delivery ready for pickup',
+                style: GoogleFonts.inter(fontSize: 13, color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogCtx),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Decline', style: TextStyle(color: Colors.white70)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogCtx);
+                        _acceptOrder(order);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF9100),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Accept Delivery', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _subscribeRealtime() {
@@ -64,6 +157,8 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         if (mounted) setState(() { _availableOrders = orders; _activeOrder = active; });
       },
     );
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
   }
 
   Future<void> _toggleOnline() async {
@@ -444,7 +539,97 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               ),
             ],
           ),
+          if (order.items.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              child: Column(
+                children: order.items.map((item) {
+                  final name = item['name']?.toString() ?? item['product_name']?.toString() ?? 'Item';
+                  final qty = item['quantity']?.toString() ?? '1';
+                  final imageUrl = item['image']?.toString() ?? item['image_url']?.toString();
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      children: [
+                        _buildDishThumbnail(name, imageUrl, size: 28),
+                        const SizedBox(width: 8),
+                        Text('${qty}x', style: GoogleFonts.outfit(color: const Color(0xFFFF9100), fontSize: 12, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(name, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildDishThumbnail(String name, String? imageUrl, {double size = 32}) {
+    final lower = name.toLowerCase();
+    String assetPath = 'assets/images/bento.png';
+    if (lower.contains('mizo')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('naga')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('khasi')) {
+      assetPath = 'assets/images/beef.png';
+    } else if (lower.contains('indian') || lower.contains('thali')) {
+      assetPath = 'assets/images/bento.png';
+    } else if (lower.contains('salad') || lower.contains('veg')) {
+      assetPath = 'assets/images/salad.png';
+    } else if (lower.contains('chicken') || lower.contains('biryani')) {
+      assetPath = 'assets/images/chicken.png';
+    } else if (lower.contains('pork') || lower.contains('mutton')) {
+      assetPath = 'assets/images/pork.png';
+    } else if (lower.contains('beef') || lower.contains('meat')) {
+      assetPath = 'assets/images/beef.png';
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('http')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          imageUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Image.asset(assetPath, width: size, height: size, fit: BoxFit.cover),
+        ),
+      );
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('assets/')) {
+      assetPath = imageUrl;
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFF222222),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(LucideIcons.utensils, size: 16, color: Colors.white38),
+        ),
       ),
     );
   }

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/auth/pending_approval_page.dart';
 import 'pages/dashboard/dashboard_page.dart';
@@ -110,18 +109,8 @@ class _MainWrapperState extends State<MainWrapper> {
         if (_isPopupShowing) return;
 
         // Check rider is online
-        try {
-          final liveData = await Supabase.instance.client
-              .from('riders')
-              .select('is_online')
-              .eq('id', rider.id)
-              .single();
-          final isOnline = liveData['is_online'] == true;
-          if (!isOnline) return;
-        } catch (_) {
-          final currentRider = provider.rider;
-          if (currentRider == null || !currentRider.isOnline) return;
-        }
+        final currentRider = provider.rider;
+        if (currentRider == null || !currentRider.isOnline) return;
 
         if (!mounted) return;
         _shownOrderPopupIds.add(order.id);
@@ -136,18 +125,8 @@ class _MainWrapperState extends State<MainWrapper> {
         if (_shownOrderPopupIds.contains(order.id)) return;
         if (_isPopupShowing) return;
 
-        try {
-          final liveData = await Supabase.instance.client
-              .from('riders')
-              .select('is_online')
-              .eq('id', rider.id)
-              .single();
-          final isOnline = liveData['is_online'] == true;
-          if (!isOnline) return;
-        } catch (_) {
-          final currentRider = provider.rider;
-          if (currentRider == null || !currentRider.isOnline) return;
-        }
+        final currentRider = provider.rider;
+        if (currentRider == null || !currentRider.isOnline) return;
 
         if (!mounted) return;
         _shownOrderPopupIds.add(order.id);

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/auth_service.dart';
 import 'signup_page.dart';
 import '../../main_wrapper.dart';
@@ -24,11 +24,11 @@ class _LoginPageState extends State<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await AuthService.signInWithEmail(
+      await AuthService.signInWithEmail(
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text,
       );
-      if (res.user != null && mounted) {
+      if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const MainWrapper()),

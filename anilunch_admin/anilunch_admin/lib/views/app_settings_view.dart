@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../admin_theme.dart';
 import '../pages_management_view.dart';
@@ -87,10 +86,7 @@ class _AppSettingsViewState extends State<AppSettingsView> {
       final video = await picker.pickVideo(source: ImageSource.gallery);
       if (video != null) {
         setState(() => _isLoading = true);
-        final bytes = await video.readAsBytes();
-        final fileName = 'home_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
-        await Supabase.instance.client.storage.from('assets').uploadBinary(fileName, bytes, fileOptions: const FileOptions(contentType: 'video/mp4'));
-        _urlController.text = Supabase.instance.client.storage.from('assets').getPublicUrl(fileName);
+        _urlController.text = video.path;
         await _saveSettings();
       }
     } catch (e) {

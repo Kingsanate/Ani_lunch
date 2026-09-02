@@ -1,6 +1,5 @@
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';
 
 class MenuProvider extends ChangeNotifier {
@@ -28,12 +27,16 @@ class MenuProvider extends ChangeNotifier {
     }
     _error = null;
 
-    // Tier 1: Try Go backend API
+    // Try Go backend API
     try {
       final catalog = AniApi.instance.api.catalog;
       final cats = await catalog.menus();
       final items = await catalog.items();
       final deals = await catalog.deals();
+
+      if (deals.isNotEmpty) {
+        _dailyDeals = deals.map(_dealToLegacyMap).toList();
+      }
 
       if (cats.isNotEmpty) {
         _categories = cats.map((m) => {
@@ -43,34 +46,13 @@ class MenuProvider extends ChangeNotifier {
           'image': m.imageUrl,
         }).toList();
         _processItems(items.map(_itemToLegacyMap).toList());
-        _dailyDeals = deals.map(_dealToLegacyMap).toList();
         _selectedCategoryId ??= 'meal';
         _isLoading = false;
         notifyListeners();
         return;
       }
     } catch (e) {
-      debugPrint('Go API catalog fetch error: $e, falling back to Supabase...');
-    }
-
-    // Tier 2: Try Supabase directly
-    try {
-      final supabase = Supabase.instance.client;
-      final catsData = await supabase.from('menus').select().order('id');
-      final itemsData = await supabase.from('items').select().eq('is_available', true);
-      final dealsData = await supabase.from('daily_deals').select().eq('is_active', true);
-
-      if (catsData.isNotEmpty) {
-        _categories = List<Map<String, dynamic>>.from(catsData);
-        _processItems(itemsData);
-        _dailyDeals = List<Map<String, dynamic>>.from(dealsData);
-        _selectedCategoryId ??= 'meal';
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-    } catch (e) {
-      debugPrint('Supabase direct catalog fetch error: $e, using default catalog...');
+      debugPrint('Go API catalog fetch error: $e, using default catalog...');
     }
 
     // Tier 3: Default Seed Catalog (Zero-Wait Guarantee)
@@ -136,10 +118,10 @@ class MenuProvider extends ChangeNotifier {
   static Map<String, dynamic> _dealToLegacyMap(DailyDeal deal) => {
     'id': deal.id,
     'title': deal.title,
-    'subtitle': deal.description ?? '',
-    'tag_text': 'Today Only',
+    'subtitle': deal.description?.isNotEmpty == true ? deal.description! : 'Special limited offer',
+    'tag_text': deal.discountPercent > 0 ? '${deal.discountPercent.toStringAsFixed(0)}% OFF' : 'Today Only',
     'color_hex': '#F15A24',
-    'icon_name': 'local_offer',
+    'icon_name': 'local_offer_rounded',
     'banner_image_url': deal.bannerImageUrl,
     'image_url': deal.bannerImageUrl,
     'discount_percent': deal.discountPercent,

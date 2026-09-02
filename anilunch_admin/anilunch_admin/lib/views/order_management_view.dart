@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:anilunch_core/anilunch_core.dart' hide ApiClient;
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin_theme.dart';
-import '../core/cache/admin_cache.dart';
 import '../core/providers/api_provider.dart';
 import '../services/api_client.dart';
 
@@ -24,6 +22,7 @@ class _OrderManagementViewState extends State<OrderManagementView> {
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
   StreamSubscription<WsEvent>? _ordersChannel;
+  Timer? _pollTimer;
 
   // Extended status labels for the full food delivery lifecycle
   static const List<Map<String, String?>> _filterTabs = [
@@ -38,6 +37,7 @@ class _OrderManagementViewState extends State<OrderManagementView> {
   @override
   void initState() {
     super.initState();
+    _fetchOrdersData();
     _subscribeToOrders();
     _prefetchUsers();
   }
@@ -62,33 +62,46 @@ class _OrderManagementViewState extends State<OrderManagementView> {
     return list;
   }
 
-  void _subscribeToOrders() async {
+  void _subscribeToOrders() {
+    // Go API Realtime WebSocket
     try {
-      final data = await AdminCache.instance.fetchCacheFirst(
-        entityType: 'orders',
-        fetcher: () async => ApiClient.fetchOrders(),
-      );
-      if (mounted) setState(() { _orders = _sortOrders(List<Map<String, dynamic>>.from(data)); _isLoading = false; });
-      _prefetchItems();
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
-    }
+      final realtime = AniApi.instance.realtime;
+      if (realtime.isConnected) {
+        realtime.join('admin.orders');
+        _ordersChannel = realtime.events.listen((event) async {
+          if (event.orderEvent == null || !mounted) return;
+          _fetchOrdersData();
+        });
+      }
+    } catch (_) {}
+  }
 
-    final realtime = AniApi.instance.realtime;
-    if (!realtime.isConnected) return;
-    realtime.join('admin');
-    _ordersChannel = realtime.events.listen((event) async {
-      if (event.orderEvent == null || !mounted) return;
+  Future<void> _fetchOrdersData() async {
+    try {
       final data = await ApiClient.fetchOrders();
       if (!mounted) return;
-      final wasNew = data.length > _orders.length;
-      setState(() => _orders = _sortOrders(List<Map<String, dynamic>>.from(data)));
+      final wasNew = data.length > _orders.length && !_isLoading;
+      setState(() {
+        _orders = _sortOrders(List<Map<String, dynamic>>.from(data));
+        _isLoading = false;
+      });
+      _prefetchItems();
       if (wasNew) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('🔔 New order received!'), backgroundColor: AdminTheme.info),
         );
       }
-    });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ordersChannel?.cancel();
+    _pollTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _prefetchItems() async {
@@ -110,13 +123,6 @@ class _OrderManagementViewState extends State<OrderManagementView> {
       }
       return map;
     }).toList();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _ordersChannel?.cancel();
-    super.dispose();
   }
 
   @override
@@ -477,18 +483,19 @@ class _OrderManagementViewState extends State<OrderManagementView> {
         final messenger = ScaffoldMessenger.of(context);
         try {
           final targetStatus = nextStatus!;
-          // API-first transition with Supabase fallback.
-          if (!await ApiClient.transitionOrder(orderId, targetStatus)) {
-            await Supabase.instance.client
-                .from('orders')
-                .update({'status': targetStatus})
-                .eq('id', orderId);
-          }
-          if (mounted) {
-            messenger.showSnackBar(SnackBar(
-              content: Text('\u2705 Order updated to ${targetStatus.replaceAll('_', ' ')}'),
-              backgroundColor: _statusColorForFilter(targetStatus),
-            ));
+          final success = await ApiClient.transitionOrder(orderId, targetStatus);
+          if (success) {
+            await _fetchOrdersData();
+            if (mounted) {
+              messenger.showSnackBar(SnackBar(
+                content: Text('✅ Order updated to ${targetStatus.replaceAll('_', ' ')}'),
+                backgroundColor: _statusColorForFilter(targetStatus),
+              ));
+            }
+          } else {
+            if (mounted) {
+              messenger.showSnackBar(const SnackBar(content: Text('Error updating order status.')));
+            }
           }
         } catch (e) {
           if (mounted) {
@@ -528,7 +535,9 @@ class _OrderManagementViewState extends State<OrderManagementView> {
     String fullTime = rawTime.toString();
     if (parsedTime != null) {
       final l = parsedTime.toLocal();
-      fullTime = '${l.day}/${l.month}/${l.year} ${l.hour}:${l.minute.toString().padLeft(2, '0')}';
+      final hour12 = l.hour == 0 ? 12 : (l.hour > 12 ? l.hour - 12 : l.hour);
+      final amPm = l.hour >= 12 ? 'PM' : 'AM';
+      fullTime = '${l.day}/${l.month}/${l.year} $hour12:${l.minute.toString().padLeft(2, '0')} $amPm';
     }
 
     final subtotal = (num.tryParse(order['subtotal']?.toString() ?? '0') ?? 0).toDouble();

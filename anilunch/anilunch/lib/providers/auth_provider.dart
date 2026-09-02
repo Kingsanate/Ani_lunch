@@ -1,26 +1,29 @@
+import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/providers/api_provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
-  AuthState? _authState;
   bool _isLoading = false;
   String? _error;
 
   AuthProvider() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((AuthState state) {
-      _user = state.session?.user;
-      _authState = state;
-      // Bridge Supabase auth to Go-issued API tokens on every state change.
-      AniApi.exchangeForSession();
-      notifyListeners();
-    });
+    _initUser();
+  }
+
+  Future<void> _initUser() async {
+    if (AniApi.isLoggedIn) {
+      try {
+        _user = await AniApi.instance.api.users.me();
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Failed to load user on init: $e');
+      }
+    }
   }
 
   User? get user => _user;
-  AuthState? get authState => _authState;
-  bool get isLoggedIn => _user != null;
+  bool get isLoggedIn => AniApi.isLoggedIn;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -30,10 +33,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
+      final res = await AniApi.instance.api.auth.login(
+        identifier: email,
         password: password,
       );
+      await AniApi.onLoginSuccess();
+      if (res['user'] != null) {
+        _user = User.fromJson(Map<String, dynamic>.from(res['user'] as Map));
+      } else {
+        _user = await AniApi.instance.api.users.me();
+      }
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -55,26 +64,18 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await Supabase.instance.client.auth.signUp(
+      final res = await AniApi.instance.api.auth.register(
         email: email,
+        phone: phone,
+        name: name,
         password: password,
-        data: {
-          'full_name': name,
-          'phone_number': phone,
-          'address': address,
-        },
+        role: 'customer',
       );
-
-      if (res.user != null) {
-        await Supabase.instance.client.from('users').insert({
-          'id': res.user!.id,
-          'user_id': res.user!.id,
-          'name': name,
-          'email': email,
-          'phone_number': phone,
-          'address': address,
-          'pin_code': pinCode,
-        });
+      await AniApi.onLoginSuccess();
+      if (res['user'] != null) {
+        _user = User.fromJson(Map<String, dynamic>.from(res['user'] as Map));
+      } else {
+        _user = await AniApi.instance.api.users.me();
       }
     } catch (e) {
       _error = e.toString();
@@ -88,12 +89,11 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      await Supabase.instance.client.auth.signOut();
+      await AniApi.onLogout();
     } catch (e) {
-      debugPrint('Supabase signOut error: $e');
+      debugPrint('Logout error: $e');
     } finally {
       _user = null;
-      _authState = null;
       _isLoading = false;
       notifyListeners();
     }

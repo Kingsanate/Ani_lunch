@@ -19,39 +19,39 @@ class DealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double cardWidth = screenWidth * 0.68;
-    if (cardWidth > 230) cardWidth = 230;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    double cardWidth = screenWidth * 0.65;
+    if (cardWidth > 250) cardWidth = 250;
 
     return BouncyTap(
       onTap: onTap ?? () {},
       child: Container(
         width: cardWidth,
-        margin: const EdgeInsets.only(bottom: 4),
+        margin: const EdgeInsets.only(bottom: 2),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [color, color.withValues(alpha: 0.85)],
+            colors: [color, color.withValues(alpha: 0.88)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: color.withValues(alpha: 0.30),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Stack(
           children: [
             Positioned(
-              right: -10,
-              bottom: -10,
+              right: -4,
+              bottom: -4,
               child: Icon(
                 icon,
-                color: Colors.white.withValues(alpha: 0.15),
-                size: 70,
+                color: Colors.white.withValues(alpha: 0.16),
+                size: 56,
               ),
             ),
             Padding(
@@ -59,31 +59,30 @@ class DealCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       tagText.toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 9,
+                        fontSize: 8.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   Text(
                     title,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
                       letterSpacing: -0.2,
                     ),
                     maxLines: 1,
@@ -93,9 +92,9 @@ class DealCard extends StatelessWidget {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.90),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w400,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

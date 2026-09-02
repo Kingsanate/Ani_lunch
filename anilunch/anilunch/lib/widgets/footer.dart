@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../content_page.dart';
+import '../core/providers/api_provider.dart';
 
 class Footer extends StatefulWidget {
   const Footer({super.key});
@@ -10,7 +10,7 @@ class Footer extends StatefulWidget {
 }
 
 class _FooterState extends State<Footer> {
-  String _subtitle = 'Fresh meat, delivered daily.';
+  String _subtitle = 'Fresh meals and meat, delivered daily.';
   List<String> _supportLinks = ['Help Center', 'Contact Us', 'FAQs'];
   List<String> _legalLinks = ['Privacy Policy', 'Terms of Use', 'Refund Policy'];
   String _copyright = '© 2026 AniLunch. All rights reserved.';
@@ -23,26 +23,21 @@ class _FooterState extends State<Footer> {
 
   Future<void> _fetchFooterSettings() async {
     try {
-      final data = await Supabase.instance.client.from('app_settings').select().maybeSingle();
-      if (mounted && data != null) {
+      final data = await AniApi.instance.api.client.get<Map<String, dynamic>>(
+        '/api/v1/catalog/app_settings',
+        authenticated: false,
+      );
+      if (mounted) {
         setState(() {
           if (data['footer_subtitle'] != null && data['footer_subtitle'].toString().isNotEmpty) {
             _subtitle = data['footer_subtitle'].toString();
           }
-          if (data['footer_support_links'] != null && data['footer_support_links'].toString().isNotEmpty) {
-            _supportLinks = data['footer_support_links'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-          }
-          if (data['footer_legal_links'] != null && data['footer_legal_links'].toString().isNotEmpty) {
-            _legalLinks = data['footer_legal_links'].toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-          }
-          if (data['footer_copyright'] != null && data['footer_copyright'].toString().isNotEmpty) {
-            _copyright = data['footer_copyright'].toString();
+          if (data['app_name'] != null) {
+            _copyright = '© 2026 ${data['app_name']}. All rights reserved.';
           }
         });
       }
-    } catch (e) {
-      debugPrint("Error fetching footer settings: $e");
-    }
+    } catch (_) {}
   }
 
   @override

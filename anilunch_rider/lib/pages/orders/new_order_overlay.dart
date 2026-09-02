@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../core/providers/api_provider.dart';
 import '../../models/order.dart';
 import '../../services/order_service.dart';
 
@@ -76,8 +77,7 @@ class _NewOrderSheetState extends State<_NewOrderSheet>
   // State for when order is taken by another rider
   bool _isTakenByOther = false;
 
-  // Supabase realtime channel to watch this order for rider assignment
-  RealtimeChannel? _orderWatchChannel;
+  StreamSubscription<WsEvent>? _orderWatchSub;
 
   // Pulse animation for the radar ring
   late AnimationController _pulseController;
@@ -91,26 +91,22 @@ class _NewOrderSheetState extends State<_NewOrderSheet>
   void initState() {
     super.initState();
 
-    // Radar pulse
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+    _pulseAnim = Tween<double>(begin: 0.85, end: 1.2).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Taken animation (fade out effect)
     _takenController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _takenAnim = CurvedAnimation(
-      parent: _takenController,
-      curve: Curves.easeIn,
+    _takenAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _takenController, curve: Curves.elasticIn),
     );
 
-    // Countdown
     _countdown = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
@@ -123,38 +119,27 @@ class _NewOrderSheetState extends State<_NewOrderSheet>
       }
     });
 
-    // Watch this order for changes — if another rider accepts it,
-    // rider_id will become non-null, and we auto-dismiss with a message.
     _subscribeToOrderChanges();
   }
 
   void _subscribeToOrderChanges() {
-    _orderWatchChannel = Supabase.instance.client
-        .channel('order_watch_${widget.order.id}_${widget.riderId}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'orders',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: widget.order.id,
-          ),
-          callback: (payload) {
-            if (!mounted) return;
-            final newRecord = payload.newRecord;
-            final riderId = newRecord['rider_id']?.toString() ?? '';
-            final status = newRecord['status']?.toString() ?? '';
+    final realtime = AniApi.instance.realtime;
+    if (!realtime.isConnected) return;
 
-            // If the order has been accepted by someone else
-            if (riderId.isNotEmpty &&
-                riderId != widget.riderId &&
-                status == 'accepted') {
-              _handleTakenByOtherRider();
-            }
-          },
-        )
-        .subscribe();
+    realtime.join('order:${widget.order.id}');
+    _orderWatchSub = realtime.events.listen((event) {
+      if (!mounted) return;
+      final orderEvent = event.orderEvent;
+      if (orderEvent == null || orderEvent.orderId != widget.order.id) return;
+      final riderId = orderEvent.riderId ?? '';
+      final status = orderEvent.status.toLowerCase();
+
+      if (riderId.isNotEmpty &&
+          riderId != widget.riderId &&
+          status == 'accepted') {
+        _handleTakenByOtherRider();
+      }
+    });
   }
 
   void _handleTakenByOtherRider() {
@@ -176,7 +161,7 @@ class _NewOrderSheetState extends State<_NewOrderSheet>
     _countdown?.cancel();
     _pulseController.dispose();
     _takenController.dispose();
-    _orderWatchChannel?.unsubscribe();
+    _orderWatchSub?.cancel();
     super.dispose();
   }
 

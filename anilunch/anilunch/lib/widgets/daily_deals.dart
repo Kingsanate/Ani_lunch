@@ -33,21 +33,31 @@ class DailyDeals extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (deals.isEmpty) return const SizedBox.shrink();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Daily Deals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF2C1A0E))),
-          const SizedBox(height: 12),
+          const Text(
+            'Daily Deals',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF2C1A0E),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 104,
+            height: 92,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               clipBehavior: Clip.none,
               itemCount: deals.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 16),
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final deal = deals[index];
                 return DealCard(

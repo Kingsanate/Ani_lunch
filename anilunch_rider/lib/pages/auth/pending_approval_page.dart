@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/auth_service.dart';
 import '../../main_wrapper.dart';
 import 'login_page.dart';
@@ -27,7 +26,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage>
   late Animation<double> _pulseAnim;
   late Animation<double> _scaleAnim;
 
-  RealtimeChannel? _approvalChannel;
+  Timer? _checkTimer;
   String _statusLabel = 'UNDER REVIEW';
   bool _isRejected = false;
   String? _rejectionReason;
@@ -51,48 +50,28 @@ class _PendingApprovalPageState extends State<PendingApprovalPage>
   }
 
   void _subscribeToApproval() {
-    final uid = AuthService.currentUser?.id;
-    if (uid == null) return;
-
-    _approvalChannel = Supabase.instance.client
-        .channel('rider_approval_$uid')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'riders',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: uid,
-          ),
-          callback: (payload) {
-            if (!mounted) return;
-            final newRow = payload.newRecord;
-            final isApproved = newRow['is_approved'] == true;
-            final approvalStatus =
-                newRow['approval_status']?.toString() ?? 'pending';
-            final rejectionReason = newRow['rejection_reason']?.toString();
-
-            if (isApproved) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const MainWrapper()),
-                (_) => false,
-              );
-            } else if (approvalStatus == 'rejected') {
-              setState(() {
-                _isRejected = true;
-                _statusLabel = 'REJECTED';
-                _rejectionReason = rejectionReason;
-              });
-            }
-          },
-        )
-        .subscribe();
+    _checkTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      final rider = await AuthService.loadRiderProfile();
+      if (!mounted || rider == null) return;
+      if (rider.isApproved) {
+        _checkTimer?.cancel();
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainWrapper()),
+          (_) => false,
+        );
+      } else if (rider.approvalStatus == 'rejected') {
+        setState(() {
+          _isRejected = true;
+          _statusLabel = 'REJECTED';
+          _rejectionReason = rider.rejectionReason;
+        });
+      }
+    });
   }
 
   Future<void> _logout() async {
-    _approvalChannel?.unsubscribe();
+    _checkTimer?.cancel();
     await AuthService.signOut();
     if (mounted) {
       Navigator.pushAndRemoveUntil(
@@ -106,7 +85,7 @@ class _PendingApprovalPageState extends State<PendingApprovalPage>
   @override
   void dispose() {
     _pulseController.dispose();
-    _approvalChannel?.unsubscribe();
+    _checkTimer?.cancel();
     super.dispose();
   }
 

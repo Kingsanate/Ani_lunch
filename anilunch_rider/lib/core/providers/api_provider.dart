@@ -2,15 +2,9 @@ import 'package:anilunch_core/anilunch_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide RealtimeClient;
 
 /// Bootstraps the Go API client, token manager and realtime gateway for the
 /// rider app.
-///
-/// Call [ensureInitialized] once in `main()` after `Supabase.initialize`,
-/// then [exchangeForSession] on every auth state change. Go-issued access
-/// tokens (15 min) and refresh tokens (7 days) are persisted to
-/// SharedPreferences; the refresh token rotates on every refresh.
 class AniApi {
   static const _kAccess = 'ani_api_access_token';
   static const _kRefresh = 'ani_api_refresh_token';
@@ -34,6 +28,8 @@ class AniApi {
   }
 
   static bool get isInitialized => _instance != null;
+  static bool get isLoggedIn => isInitialized && instance.tokens.accessToken != null;
+  static String? get currentUserId => isInitialized ? instance.tokens.userId : null;
 
   static Future<AniApi> ensureInitialized({String? baseUrl}) async {
     final existing = _instance;
@@ -65,31 +61,40 @@ class AniApi {
 
     final instance = AniApi._(api: api, realtime: realtime, tokens: tokens);
     _instance = instance;
+
+    if (tokens.accessToken != null) {
+      try {
+        await realtime.connect();
+      } catch (e) {
+        debugPrint('Rider realtime connect notice: $e');
+      }
+    }
+
     return instance;
   }
 
-  /// Exchanges the current Supabase session JWT for Go-issued tokens and
-  /// connects the realtime gateway. No-ops when signed out.
-  static Future<void> exchangeForSession({String? supabaseToken}) async {
+  static Future<void> onLoginSuccess() async {
     final instance = _instance;
     if (instance == null) return;
-
-    final token = supabaseToken ??
-        Supabase.instance.client.auth.currentSession?.accessToken;
-    if (token == null || token.isEmpty) {
-      await instance.tokens.clear();
-      return;
-    }
-
     try {
-      await instance.api.client.exchangeSupabaseToken(token);
-      try {
-        await instance.realtime.connect();
-      } catch (e) {
-        debugPrint('Realtime connect failed: $e');
-      }
+      await instance.realtime.connect();
     } catch (e) {
-      debugPrint('Token exchange failed: $e');
+      debugPrint('Realtime connect failed: $e');
+    }
+  }
+
+  static Future<void> onLogout() async {
+    final instance = _instance;
+    if (instance == null) return;
+    try {
+      instance.realtime.disconnect();
+      await instance.tokens.clear();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kAccess);
+      await prefs.remove(_kRefresh);
+      await prefs.remove(_kUser);
+    } catch (e) {
+      debugPrint('Rider onLogout error: $e');
     }
   }
 }

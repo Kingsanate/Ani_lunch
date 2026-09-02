@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
+import '../core/providers/api_provider.dart';
 import '../providers/menu_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
@@ -27,52 +28,37 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   String? _profileImageUrl;
+  Timer? _catalogRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
-    final auth = context.read<AuthProvider>();
-    _fetchProfile(auth.user);
-    final order = context.read<OrderProvider>();
-    order.clearOrders();
-    final userId = auth.user?.id ?? Supabase.instance.client.auth.currentUser?.id;
-    if (userId != null && userId.isNotEmpty) {
-      order.fetchOrders(userId, isLunchMode: true);
-      order.subscribeToUpdates(userId, isLunchMode: true);
-    }
+    _initUserAndOrders();
+    _catalogRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        context.read<MenuProvider>().fetchInitialData();
+      }
+    });
   }
 
-  Future<void> _fetchProfile(User? user) async {
-    if (user == null) return;
-    try {
-      final profile = await Supabase.instance.client
-          .from('users')
-          .select()
-          .eq('user_id', user.id)
-          .maybeSingle();
-      if (mounted && profile != null) {
-        final img = profile['avatar_url'] ?? profile['profile_image_url'];
-        if (img != null && img.toString().isNotEmpty) {
-          setState(() {
-            _profileImageUrl = img.toString();
-          });
-          return;
-        }
-      }
-    } catch (_) {}
-    if (mounted) {
-      final authImg = user.userMetadata?['avatar_url'] ?? user.userMetadata?['profile_image_url'];
-      if (authImg != null && authImg.toString().isNotEmpty) {
-        setState(() {
-          _profileImageUrl = authImg.toString();
-        });
-      }
+  Future<void> _initUserAndOrders() async {
+    final auth = context.read<AuthProvider>();
+    final userId = auth.user?.id ?? AniApi.currentUserId ?? 'usr-1';
+    final order = context.read<OrderProvider>();
+    order.fetchOrders(userId, isLunchMode: true);
+    order.subscribeToUpdates(userId, isLunchMode: true);
+
+    if (auth.user?.avatarUrl != null && auth.user!.avatarUrl!.isNotEmpty) {
+      setState(() {
+        _profileImageUrl = auth.user!.avatarUrl;
+      });
     }
   }
 
   @override
   void dispose() {
+    _catalogRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -102,11 +88,9 @@ class _HomePageState extends State<HomePage> {
                           const SizedBox(width: 4),
                           _navButton('Cart', 1),
                           const SizedBox(width: 4),
-                          _navButton('Play', 2),
+                          _navButton('Orders', 2),
                           const SizedBox(width: 4),
-                          _navButton('Orders', 3),
-                          const SizedBox(width: 4),
-                          _navButton('Profile', 4),
+                          _navButton('Profile', 3),
                           const SizedBox(width: 24),
                           Container(decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFFF15A24), width: 2)),
                             child: CircleAvatar(radius: 18, backgroundImage: _profileImageUrl != null

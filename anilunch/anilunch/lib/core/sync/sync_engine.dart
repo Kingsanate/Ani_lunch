@@ -4,19 +4,17 @@ import 'dart:math';
 import 'package:anilunch_core/anilunch_core.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/app_database.dart';
 import '../providers/api_provider.dart';
 
-// SyncEngine coordinates background sync between Drift SQLite and backend/Supabase.
+// SyncEngine coordinates background sync between Drift SQLite and Go API backend.
 // Guarantees Last-Write-Wins (LWW) and reliable at-least-once offline mutations.
 class SyncEngine {
   final AppDatabase db;
-  final SupabaseClient supabase;
   Timer? _syncTimer;
   bool _isSyncing = false;
 
-  SyncEngine({required this.db, required this.supabase});
+  SyncEngine({required this.db});
 
   void startPeriodicSync({Duration interval = const Duration(seconds: 30)}) {
     _syncTimer?.cancel();
@@ -124,11 +122,6 @@ class SyncEngine {
             specialNotes: payload['special_notes']?.toString(),
             items: items,
           ));
-        }
-        break;
-      case 'review':
-        if (task.action == 'create') {
-          await supabase.from('product_reviews').insert(payload);
         }
         break;
       default:

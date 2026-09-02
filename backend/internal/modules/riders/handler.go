@@ -27,6 +27,7 @@ func (h *Handler) Routes() chi.Router {
 
 	r.Get("/orders/available", h.ListAvailableOrders)
 	r.Get("/orders/mine", h.ListAssignedOrders)
+	r.Get("/orders/assigned", h.ListAssignedOrders)
 	r.Post("/orders/{id}/accept", h.AcceptOrder)
 
 	return r

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"strings"
 	"time"
 
 	"animeat/backend/internal/cache"
@@ -233,45 +234,60 @@ func (s *Service) GetDailyDeals(ctx context.Context) ([]DailyDeal, error) {
 }
 
 func (s *Service) queryDailyDeals(ctx context.Context) ([]DailyDeal, error) {
-	if s.db == nil || s.db.Reader() == nil {
-		return defaultSeedDeals(), nil
-	}
+	if s.db != nil && s.db.Reader() != nil {
+		rows, err := s.db.Reader().Query(ctx, `
+			SELECT id::text, title, COALESCE(description, ''),
+			       COALESCE(discount_percentage, discount, 0),
+			       COALESCE((max_discount_amount * 100)::bigint, 0),
+			       COALESCE(banner_image_url, image_url, ''),
+			       COALESCE(valid_from, NOW() - INTERVAL '1 day'),
+			       COALESCE(valid_until, NOW() + INTERVAL '365 days'),
+			       COALESCE(is_active, true)
+			FROM daily_deals
+			WHERE is_active = true
+			ORDER BY id DESC
+		`)
+		if err == nil {
+			defer rows.Close()
+			var deals []DailyDeal
+			for rows.Next() {
+				var deal DailyDeal
+				var rawMaxDiscount int64
 
-	now := time.Now().UTC()
-	rows, err := s.db.Reader().Query(ctx, `
-		SELECT id, title, description, discount_percentage, max_discount_amount,
-		       banner_image_url, valid_from, valid_until, is_active
-		FROM daily_deals
-		WHERE is_active = true AND valid_from <= $1 AND valid_until >= $1
-		ORDER BY discount_percentage DESC
-	`, now)
-	if err != nil {
-		return defaultSeedDeals(), nil
-	}
-	defer rows.Close()
-
-	var deals []DailyDeal
-	for rows.Next() {
-		var deal DailyDeal
-		var rawMaxDiscount int64
-
-		err := rows.Scan(
-			&deal.ID, &deal.Title, &deal.Description,
-			&deal.DiscountPct, &rawMaxDiscount, &deal.BannerImageURL,
-			&deal.ValidFrom, &deal.ValidUntil, &deal.IsActive,
-		)
-		if err != nil {
-			return defaultSeedDeals(), nil
+				if err := rows.Scan(
+					&deal.ID, &deal.Title, &deal.Description,
+					&deal.DiscountPct, &rawMaxDiscount, &deal.BannerImageURL,
+					&deal.ValidFrom, &deal.ValidUntil, &deal.IsActive,
+				); err == nil {
+					deal.MaxDiscountAmt = platform.FromPaise(rawMaxDiscount)
+					deals = append(deals, deal)
+				}
+			}
+			if len(deals) > 0 {
+				return deals, nil
+			}
 		}
-
-		deal.MaxDiscountAmt = platform.FromPaise(rawMaxDiscount)
-		deals = append(deals, deal)
 	}
 
-	if len(deals) == 0 {
-		return defaultSeedDeals(), nil
+	stored := platform.GlobalStore.ListDeals()
+	deals := make([]DailyDeal, 0, len(stored))
+	for _, d := range stored {
+		if d.IsActive {
+			desc := d.Description
+			img := d.BannerImageURL
+			deals = append(deals, DailyDeal{
+				ID:             fmt.Sprintf("%d", d.ID),
+				Title:          d.Title,
+				Description:    &desc,
+				DiscountPct:    d.DiscountPct,
+				MaxDiscountAmt: d.OriginalPrice,
+				BannerImageURL: &img,
+				IsActive:       d.IsActive,
+				ValidFrom:      d.CreatedAt.Add(-24 * time.Hour),
+				ValidUntil:     d.CreatedAt.Add(365 * 24 * time.Hour),
+			})
+		}
 	}
-
 	return deals, nil
 }
 
@@ -326,6 +342,91 @@ func defaultSeedDeals() []DailyDeal {
 			IsActive:       true,
 			ValidFrom:      time.Now().Add(-24 * time.Hour),
 			ValidUntil:     time.Now().Add(48 * time.Hour),
+		},
+	}
+}
+
+// GetMealProducts retrieves lunch thalis and meals.
+func (s *Service) GetMealProducts(ctx context.Context) ([]MealProduct, error) {
+	if s.db == nil || s.db.Reader() == nil {
+		return defaultMealProducts(), nil
+	}
+
+	rows, err := s.db.Reader().Query(ctx, `
+		SELECT id::text, name, COALESCE(description, ''), price, discount_price, COALESCE(rating, 0), COALESCE(image_url, ''), is_available, COALESCE(rice_options, '{}'), COALESCE(meat_options, '{}'), created_at
+		FROM meal_products
+		WHERE is_available = true
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return defaultMealProducts(), nil
+	}
+	defer rows.Close()
+
+	var products []MealProduct
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var p MealProduct
+		if err := rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.DiscountPrice, &p.Rating, &p.ImageURL, &p.IsAvailable, &p.RiceOptions, &p.MeatOptions, &p.CreatedAt,
+		); err == nil {
+			products = append(products, p)
+			existing[strings.ToLower(p.Name)] = true
+		}
+	}
+
+	for _, def := range defaultMealProducts() {
+		if !existing[strings.ToLower(def.Name)] {
+			products = append(products, def)
+		}
+	}
+
+	return products, nil
+}
+
+// GetAppSettings retrieves global application settings.
+func (s *Service) GetAppSettings(ctx context.Context) (*AppSettings, error) {
+	if s.db == nil || s.db.Reader() == nil {
+		return &AppSettings{
+			ID: "default", AppName: "AniLunch", ContactEmail: "support@anilunch.com", ContactPhone: "+91 9774164689", DeliveryFee: 30, FreeDeliveryThreshold: 500, IsStoreOpen: true,
+		}, nil
+	}
+
+	var st AppSettings
+	err := s.db.Reader().QueryRow(ctx, `
+		SELECT id::text, COALESCE(app_name, 'AniLunch'), COALESCE(contact_email, ''), COALESCE(contact_phone, ''), COALESCE(delivery_fee, 30), COALESCE(free_delivery_threshold, 500), COALESCE(is_store_open, true)
+		FROM app_settings
+		LIMIT 1
+	`).Scan(&st.ID, &st.AppName, &st.ContactEmail, &st.ContactPhone, &st.DeliveryFee, &st.FreeDeliveryThreshold, &st.IsStoreOpen)
+	if err != nil {
+		return &AppSettings{
+			ID: "default", AppName: "AniLunch", ContactEmail: "support@anilunch.com", ContactPhone: "+91 9774164689", DeliveryFee: 30, FreeDeliveryThreshold: 500, IsStoreOpen: true,
+		}, nil
+	}
+	return &st, nil
+}
+
+func defaultMealProducts() []MealProduct {
+	return []MealProduct{
+		{
+			ID: "50e91272-8541-4e4b-af57-5f2a51c2dd69", Name: "Khasi Thali", Description: "Pure Local Traditional Platter", Price: 200, Rating: 4.9,
+			ImageURL: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80", IsAvailable: true,
+			RiceOptions: []string{"White Rice", "Red Rice"}, MeatOptions: []string{"Chicken", "Pork", "Beef", "Fish"}, CreatedAt: time.Now(),
+		},
+		{
+			ID: "mizo-thali-7788-9900", Name: "Mizo Thali", Description: "Authentic Tribal Lunch & Bai", Price: 200, Rating: 4.9,
+			ImageURL: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80", IsAvailable: true,
+			RiceOptions: []string{"Steamed Local Rice"}, MeatOptions: []string{"Smoked Pork", "Boiled Chicken", "Local Fish"}, CreatedAt: time.Now(),
+		},
+		{
+			ID: "naga-thali-3344-5566", Name: "Naga Thali", Description: "Smoked Meat with Bamboo Shoot", Price: 200, Rating: 4.9,
+			ImageURL: "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=80", IsAvailable: true,
+			RiceOptions: []string{"Naga Sticky Rice", "White Rice"}, MeatOptions: []string{"Smoked Pork & Axone", "Spicy Chicken Curry"}, CreatedAt: time.Now(),
+		},
+		{
+			ID: "001e758c-d57b-4310-9131-e0947019c517", Name: "Indian Thali", Description: "Classic North Indian Meal", Price: 150, Rating: 4.8,
+			ImageURL: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=600&q=80", IsAvailable: true,
+			RiceOptions: []string{"Jeera Rice", "Plain Rice"}, MeatOptions: []string{"Chicken Curry", "Mutton Curry"}, CreatedAt: time.Now(),
 		},
 	}
 }

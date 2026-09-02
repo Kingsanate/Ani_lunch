@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/providers/api_provider.dart';
 import 'login_view.dart';
 
 class ProfilePageView extends StatefulWidget {
@@ -15,7 +15,7 @@ class _ProfilePageViewState extends State<ProfilePageView> {
   bool _pushNotifications = true;
   bool _emailAlerts = false;
 
-  String get _adminEmail => Supabase.instance.client.auth.currentUser?.email ?? 'admin@anilunch.com';
+  String get _adminEmail => 'admin@anilunch.com';
   String get _displayName => _adminEmail.split('@').first;
 
   @override
@@ -128,7 +128,7 @@ class _ProfilePageViewState extends State<ProfilePageView> {
               child: OutlinedButton(
                 onPressed: () async {
                   final nav = Navigator.of(context);
-                  await Supabase.instance.client.auth.signOut();
+                  await AniApi.onLogout();
                   if (!mounted) return;
                   nav.pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginView()),

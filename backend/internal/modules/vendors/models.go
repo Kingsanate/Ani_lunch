@@ -56,6 +56,7 @@ type VendorItem struct {
 	Quantity  int            `json:"quantity"`
 	UnitPrice platform.Money `json:"unit_price"`
 	Subtotal  platform.Money `json:"subtotal"`
+	Image     string         `json:"image,omitempty"`
 }
 
 // VendorStats summarizes a vendor's daily performance.
