@@ -11,6 +11,7 @@ import (
 	"animeat/backend/internal/database"
 	"animeat/backend/internal/events"
 	"animeat/backend/internal/platform"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -238,41 +239,74 @@ func (s *Service) AcceptOrder(ctx context.Context, riderID, orderID string) (*Ri
 		return nil, platform.ErrInternal
 	}
 	if s.db.Pool != nil {
-		_, _ = s.db.Pool.Exec(ctx, `
+		tag, err := s.db.Pool.Exec(ctx, `
 			UPDATE orders
 			SET rider_id = $1, status = 'accepted', updated_at = NOW()
 			WHERE id = $2
 			  AND status IN ('ready_for_pickup', 'assigned', 'pending', 'preparing')
+			  AND (rider_id IS NULL OR rider_id = '')
 		`, riderID, orderID)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to claim order: %v", platform.ErrInternal, err)
+		}
+		if tag.RowsAffected() == 0 {
+			var currentRider *string
+			_ = s.db.Pool.QueryRow(ctx, `SELECT rider_id FROM orders WHERE id = $1`, orderID).Scan(&currentRider)
+			if currentRider != nil && *currentRider != "" && *currentRider != riderID {
+				return nil, fmt.Errorf("%w: order has already been claimed by another rider", platform.ErrConflict)
+			}
+			if currentRider == nil || *currentRider != riderID {
+				return nil, fmt.Errorf("%w: order is no longer available for claiming", platform.ErrConflict)
+			}
+		}
 	}
 
 	platform.GlobalStore.UpdateStatus(orderID, "accepted", &riderID)
 
 	order, err := s.GetOrder(ctx, orderID)
-	if err == nil && order != nil {
-		return order, nil
+	if err != nil || order == nil {
+		if mo, ok := platform.GlobalStore.Get(orderID); ok {
+			order = &RiderOrder{
+				ID:            mo.ID,
+				UserID:        mo.UserID,
+				VendorID:      mo.VendorID,
+				Status:        "accepted",
+				Subtotal:      mo.Subtotal,
+				DeliveryFee:   mo.DeliveryFee,
+				TotalAmount:   mo.TotalAmount,
+				PaymentMethod: mo.PaymentMethod,
+				PaymentStatus: mo.PaymentStatus,
+				Address:       mo.DeliveryStreet,
+				CustomerName:  mo.CustomerName,
+			}
+		} else {
+			order = &RiderOrder{
+				ID:     orderID,
+				Status: "accepted",
+			}
+		}
 	}
 
-	if mo, ok := platform.GlobalStore.Get(orderID); ok {
-		return &RiderOrder{
-			ID:            mo.ID,
-			UserID:        mo.UserID,
-			VendorID:      mo.VendorID,
-			Status:        "accepted",
-			Subtotal:      mo.Subtotal,
-			DeliveryFee:   mo.DeliveryFee,
-			TotalAmount:   mo.TotalAmount,
-			PaymentMethod: mo.PaymentMethod,
-			PaymentStatus: mo.PaymentStatus,
-			Address:       mo.DeliveryStreet,
-			CustomerName:  mo.CustomerName,
-		}, nil
+	// Publish orders.accepted durable event to NATS JetStream
+	if s.publisher != nil {
+		now := time.Now().UTC()
+		var vendorID *string
+		if order.VendorID != nil && *order.VendorID != "" {
+			vendorID = order.VendorID
+		}
+		_ = s.publisher.PublishOrderEvent(ctx, "orders.accepted", &events.OrderEventPayload{
+			EventID:   uuid.New().String(),
+			EventType: "orders.accepted",
+			OrderID:   orderID,
+			UserID:    order.UserID,
+			VendorID:  vendorID,
+			RiderID:   &riderID,
+			Status:    "accepted",
+			Timestamp: now,
+		})
 	}
 
-	return &RiderOrder{
-		ID:     orderID,
-		Status: "accepted",
-	}, nil
+	return order, nil
 }
 
 // GetOrder returns a single order for the rider (own or available).

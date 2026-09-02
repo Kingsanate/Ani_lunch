@@ -92,3 +92,8 @@ func getEnvInt(key string, defaultVal int) int {
 	}
 	return defaultVal
 }
+
+// IsProduction reports whether the server is running in production mode.
+func (c *Config) IsProduction() bool {
+	return c.Environment == "production" || c.Environment == "prod"
+}

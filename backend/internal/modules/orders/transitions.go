@@ -35,10 +35,11 @@ func (s *Service) TransitionOrder(ctx context.Context, userID, orderID, newStatu
 	var currentStatus string
 	var vendorID *string
 	var riderID *string
+	var customerUserID string
 	if s.db != nil && s.db.Pool != nil {
 		_ = s.db.Pool.QueryRow(ctx, `
-			SELECT status, vendor_id, rider_id FROM orders WHERE id = $1
-		`, orderID).Scan(&currentStatus, &vendorID, &riderID)
+			SELECT status, vendor_id, rider_id, COALESCE(user_id, '') FROM orders WHERE id = $1
+		`, orderID).Scan(&currentStatus, &vendorID, &riderID, &customerUserID)
 	}
 
 	if currentStatus == "" {
@@ -46,6 +47,7 @@ func (s *Service) TransitionOrder(ctx context.Context, userID, orderID, newStatu
 			currentStatus = mo.Status
 			vendorID = mo.VendorID
 			riderID = mo.RiderID
+			customerUserID = mo.UserID
 		} else {
 			return nil, platform.ErrNotFound
 		}
@@ -90,6 +92,9 @@ func (s *Service) TransitionOrder(ctx context.Context, userID, orderID, newStatu
 			EventID:   uuid.New().String(),
 			EventType: fmt.Sprintf("orders.%s", newStatus),
 			OrderID:   orderID,
+			UserID:    customerUserID,
+			VendorID:  vendorID,
+			RiderID:   riderID,
 			Status:    newStatus,
 			Timestamp: now,
 		})
