@@ -70,11 +70,10 @@ func main() {
 	if err != nil {
 		slog.Warn("could not connect to PostgreSQL on startup", "error", err)
 	}
-	defer pg.Close()
-
-	// Replication-lag monitoring (Phase 12): no-op when no read replica is
-	// configured. Exposes animeat_replica_lag_seconds for Prometheus.
-	pg.StartReplicaLagMonitor(ctx, 15*time.Second)
+	if pg != nil {
+		defer pg.Close()
+		pg.StartReplicaLagMonitor(ctx, 15*time.Second)
+	}
 
 	redisClient, err := cache.NewRedisClient(ctx, cfg.RedisURL)
 	if err != nil {

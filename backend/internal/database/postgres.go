@@ -114,6 +114,9 @@ func (p *Postgres) ReadPing(ctx context.Context) error {
 
 // Close gracefully closes all connection pools.
 func (p *Postgres) Close() {
+	if p == nil {
+		return
+	}
 	if p.Pool != nil {
 		p.Pool.Close()
 	}
@@ -126,7 +129,7 @@ func (p *Postgres) Close() {
 // the read replica and exposes it as the animeat_replica_lag_seconds gauge.
 // No-op when no read replica is configured.
 func (p *Postgres) StartReplicaLagMonitor(ctx context.Context, interval time.Duration) {
-	if p.ReadPool == nil {
+	if p == nil || p.ReadPool == nil {
 		return
 	}
 
