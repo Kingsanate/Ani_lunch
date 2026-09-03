@@ -27,8 +27,10 @@ func (s *Service) GetProfile(ctx context.Context, vendorID string) (*Vendor, err
 	if s.db.Pool != nil {
 		var v Vendor
 		err := s.db.Pool.QueryRow(ctx, `
-			SELECT id, name, address, phone, location_lat, location_lng, is_open, created_at, updated_at
-			FROM vendors WHERE id = $1
+			SELECT id::text, COALESCE(name, ''), COALESCE(address, ''), COALESCE(phone, ''),
+			       location_lat, location_lng, COALESCE(is_open, TRUE),
+			       COALESCE(created_at, NOW()), COALESCE(updated_at, NOW())
+			FROM vendors WHERE id::text = $1 OR email = $1 OR phone = $1
 		`, vendorID).Scan(
 			&v.ID, &v.Name, &v.Address, &v.Phone,
 			&v.LocationLat, &v.LocationLng, &v.IsOpen, &v.CreatedAt, &v.UpdatedAt,

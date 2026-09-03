@@ -33,9 +33,11 @@ func (s *Service) GetProfile(ctx context.Context, riderID string) (*Rider, error
 	if s.db != nil && s.db.Pool != nil {
 		var r Rider
 		err := s.db.Pool.QueryRow(ctx, `
-			SELECT id, name, phone, email, is_online, latitude, longitude,
-			       is_approved, approval_status, rejection_reason, created_at, updated_at
-			FROM riders WHERE id = $1
+			SELECT id::text, COALESCE(name, ''), COALESCE(phone, ''), COALESCE(email, ''),
+			       COALESCE(is_online, FALSE), latitude, longitude,
+			       COALESCE(is_approved, TRUE), COALESCE(approval_status, 'approved'),
+			       rejection_reason, COALESCE(created_at, NOW()), COALESCE(updated_at, NOW())
+			FROM riders WHERE id::text = $1 OR email = $1 OR phone = $1
 		`, riderID).Scan(
 			&r.ID, &r.Name, &r.Phone, &r.Email, &r.IsOnline,
 			&r.Latitude, &r.Longitude, &r.IsApproved, &r.ApprovalStatus,

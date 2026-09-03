@@ -224,31 +224,52 @@ class _MobileVendorShellState extends State<MobileVendorShell> {
   }
 
   Future<void> _loadVendor() async {
-    final userId = AniApi.currentUserId;
-    if (userId != null) {
-      final cached = await VendorCache.instance.getProfile(userId);
-      if (cached != null && cached['id'] != null) {
+    try {
+      final userId = AniApi.currentUserId;
+      if (userId != null) {
+        try {
+          final cached = await VendorCache.instance.getProfile(userId).timeout(
+            const Duration(seconds: 1),
+            onTimeout: () => null,
+          );
+          if (cached != null && cached['id'] != null) {
+            if (mounted) {
+              setState(() {
+                _vendorId = cached['id'];
+                _isLoading = false;
+              });
+            }
+            _setupRealtime();
+          }
+        } catch (_) {}
+      }
+
+      final profile = await SupabaseService.getVendorProfile().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
+      if (profile != null && mounted) {
         setState(() {
-          _vendorId = cached['id'];
+          _vendorId = profile['id'];
+          _isLoading = false;
+        });
+        _setupRealtime();
+      } else if (mounted) {
+        setState(() {
+          _vendorId = _vendorId ?? userId ?? 'vendor-1';
           _isLoading = false;
         });
         _setupRealtime();
       }
-    }
-
-    final profile = await SupabaseService.getVendorProfile();
-    if (profile != null) {
-      setState(() {
-        _vendorId = profile['id'];
-        _isLoading = false;
-      });
-      _setupRealtime();
-    } else if (_vendorId == null) {
-      setState(() {
-        _vendorId = userId ?? 'vendor-1';
-        _isLoading = false;
-      });
-      _setupRealtime();
+    } catch (e) {
+      debugPrint('Load vendor notice: $e');
+      if (mounted) {
+        setState(() {
+          _vendorId = _vendorId ?? AniApi.currentUserId ?? 'vendor-1';
+          _isLoading = false;
+        });
+        _setupRealtime();
+      }
     }
   }
 
