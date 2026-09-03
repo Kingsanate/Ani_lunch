@@ -79,14 +79,14 @@ func (s *Service) Register(ctx context.Context, email, phone, name, password, ro
 
 	if s.db != nil && s.db.Pool != nil {
 		var existingID string
-		_ = s.db.Pool.QueryRow(ctx, `SELECT id::text FROM users WHERE (email != '' AND email = $1) OR (phone != '' AND phone = $2)`, email, phone).Scan(&existingID)
+		_ = s.db.Pool.QueryRow(ctx, `SELECT id::text FROM users WHERE (email != '' AND LOWER(email) = LOWER($1)) OR (phone != '' AND phone = $2) OR (phone_number != '' AND phone_number = $2)`, email, phone).Scan(&existingID)
 		if existingID != "" {
 			return "", "", nil, errors.New("user with this email or phone already exists")
 		}
 
 		_, err = s.db.Pool.Exec(ctx, `
-			INSERT INTO users (id, user_id, name, email, phone, password_hash, role, is_admin, created_at, updated_at)
-			VALUES ($1, $1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+			INSERT INTO users (id, user_id, name, email, phone, phone_number, password_hash, role, is_admin, created_at, updated_at)
+			VALUES ($1::uuid, $1::uuid, $2, $3, $4, $4, $5, $6, $7, NOW(), NOW())
 		`, userID, name, email, phone, string(hash), role, isAdmin)
 		if err == nil {
 			if role == "rider" {
@@ -155,9 +155,12 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (acces
 	var u UserResponse
 	var passwordHash string
 	err = s.db.Pool.QueryRow(ctx, `
-		SELECT id::text, name, email, phone, COALESCE(address, ''), COALESCE(avatar_url, ''), COALESCE(password_hash, ''), COALESCE(role, 'customer'), COALESCE(is_admin, FALSE), created_at
+		SELECT id::text, COALESCE(name, ''), COALESCE(email, ''), COALESCE(phone, phone_number, ''),
+		       COALESCE(address, ''), COALESCE(avatar_url, profile_image_url, ''),
+		       COALESCE(password_hash, ''), COALESCE(role, 'customer'), COALESCE(is_admin, FALSE),
+		       COALESCE(created_at, NOW())
 		FROM users
-		WHERE LOWER(email) = $1 OR phone = $1 OR user_id = $1 OR id::text = $1
+		WHERE LOWER(email) = $1 OR phone = $1 OR phone_number = $1 OR user_id::text = $1 OR id::text = $1
 	`, cleanID).Scan(
 		&u.ID, &u.Name, &u.Email, &u.Phone, &u.Address, &u.AvatarURL, &passwordHash, &u.Role, &u.IsAdmin, &u.CreatedAt,
 	)
@@ -210,9 +213,11 @@ func (s *Service) GetMe(ctx context.Context, userID string) (*UserResponse, erro
 	if s.db != nil && s.db.Pool != nil {
 		var u UserResponse
 		err := s.db.Pool.QueryRow(ctx, `
-			SELECT id::text, name, email, phone, COALESCE(address, ''), COALESCE(avatar_url, ''), COALESCE(role, 'customer'), COALESCE(is_admin, FALSE), created_at
+			SELECT id::text, COALESCE(name, ''), COALESCE(email, ''), COALESCE(phone, phone_number, ''),
+			       COALESCE(address, ''), COALESCE(avatar_url, profile_image_url, ''),
+			       COALESCE(role, 'customer'), COALESCE(is_admin, FALSE), COALESCE(created_at, NOW())
 			FROM users
-			WHERE user_id = $1 OR id::text = $1
+			WHERE user_id::text = $1 OR id::text = $1
 		`, userID).Scan(
 			&u.ID, &u.Name, &u.Email, &u.Phone, &u.Address, &u.AvatarURL, &u.Role, &u.IsAdmin, &u.CreatedAt,
 		)
